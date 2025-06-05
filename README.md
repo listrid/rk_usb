@@ -127,7 +127,7 @@ rk_usb version
 
 
 ```shell
-rk_usb extra maskrom --sram rk3506_ddr_750MHz_v1.05.bin --delay 10 --rc4 off --dram rk3506_usbplug_v1.02.bin --delay 10
+rk_usb extra maskrom --sram rk3506_ddr_750MHz_v1.05.bin --delay 10 --dram rk3506_usbplug_v1.02.bin --delay 10
 rk_usb version
 ```
 
