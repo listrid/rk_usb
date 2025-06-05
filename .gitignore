@@ -1,0 +1,8 @@
+/build/
+/.vs/
+*.vcxproj.user
+*.suo
+*.tss
+*.opensdf
+*.sdf
+

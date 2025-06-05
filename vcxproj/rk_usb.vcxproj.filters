@@ -1,0 +1,106 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="src">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="src\libusb">
+      <UniqueIdentifier>{60586642-37a7-4a3a-9d7a-093244cf4940}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\libusb\os">
+      <UniqueIdentifier>{15f193ab-ebc3-419c-9302-0ab7b15804e0}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\src\rk_bin.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\main.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rk_common.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\rk_usb.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\libusb\core.c">
+      <Filter>src\libusb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\libusb\descriptor.c">
+      <Filter>src\libusb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\libusb\hotplug.c">
+      <Filter>src\libusb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\libusb\io.c">
+      <Filter>src\libusb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\libusb\strerror.c">
+      <Filter>src\libusb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\libusb\sync.c">
+      <Filter>src\libusb</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\libusb\os\threads_windows.c">
+      <Filter>src\libusb\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\libusb\os\windows_common.c">
+      <Filter>src\libusb\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\libusb\os\windows_usbdk.c">
+      <Filter>src\libusb\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\libusb\os\windows_winusb.c">
+      <Filter>src\libusb\os</Filter>
+    </ClCompile>
+    <ClCompile Include="..\src\libusb\os\events_windows.c">
+      <Filter>src\libusb\os</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\src\rk_bin.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rk_common.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\rk_usb.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\libusb\libusb.h">
+      <Filter>src\libusb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\libusb\libusbi.h">
+      <Filter>src\libusb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\libusb\threads_windows.h">
+      <Filter>src\libusb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\libusb\version.h">
+      <Filter>src\libusb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\libusb\version_nano.h">
+      <Filter>src\libusb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\libusb\config.h">
+      <Filter>src\libusb</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\libusb\os\threads_windows.h">
+      <Filter>src\libusb\os</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\libusb\os\windows_common.h">
+      <Filter>src\libusb\os</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\libusb\os\windows_usbdk.h">
+      <Filter>src\libusb\os</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\libusb\os\windows_winusb.h">
+      <Filter>src\libusb\os</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\libusb\os\events_windows.h">
+      <Filter>src\libusb\os</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>
