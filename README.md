@@ -1,7 +1,7 @@
 ***
 # RK_USB
 The low level tools for rockchip SOC with maskrom and loader mode support.
-fork XROCK 
+ fork XROCK 
 
 ## How to build
 
@@ -21,7 +21,7 @@ build project rk_usb.sln from Visual Studio
 
 ## Usage
 
-```shell
+```
 usage:
     rk_usb maskrom <ddr> <usbplug> [--rc4]        - Initial chip using ddr and usbplug in maskrom mode
     rk_usb download <loader>                      - Initial chip using loader in maskrom mode
@@ -54,8 +54,10 @@ extra:
     rk_usb extra write-arm64 [--rc4] <address> <file>
     rk_usb extra exec-arm32 [--rc4] <address>
     rk_usb extra exec-arm64 [--rc4] <address>
-```
+
 [--rc4]  enable encryption mode (old chips)
+```
+
 
 
 ## Tips
