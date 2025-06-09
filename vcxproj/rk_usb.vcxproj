@@ -78,12 +78,14 @@
     <LinkIncremental>true</LinkIncremental>
     <IntDir>$(SolutionDir)build\$(Configuration)\$(PlatformTarget)</IntDir>
     <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
+    <GenerateManifest>true</GenerateManifest>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LocalDebuggerWorkingDirectory>$(SolutionDir)build\$(Configuration)\</LocalDebuggerWorkingDirectory>
     <LinkIncremental>false</LinkIncremental>
     <IntDir>$(SolutionDir)build\$(Configuration)\$(PlatformTarget)</IntDir>
     <OutDir>$(SolutionDir)build\$(Configuration)\</OutDir>
+    <GenerateManifest>false</GenerateManifest>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -104,7 +106,7 @@
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <Optimization>MinSpace</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
-      <IntrinsicFunctions>false</IntrinsicFunctions>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <FavorSizeOrSpeed>Size</FavorSizeOrSpeed>
@@ -116,12 +118,14 @@
       <EnableParallelCodeGeneration>false</EnableParallelCodeGeneration>
       <InlineFunctionExpansion>Default</InlineFunctionExpansion>
       <DebugInformationFormat>None</DebugInformationFormat>
+      <StringPooling>true</StringPooling>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>false</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
+      <RandomizedBaseAddress>false</RandomizedBaseAddress>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

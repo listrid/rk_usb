@@ -55,8 +55,10 @@
 //#define ENABLE_LOGGING 1
 
 #ifdef _MSC_VER
+
 /* Define to 1 if compiling for a Windows platform. */
 #define PLATFORM_WINDOWS 1
+
 #else
 #define PLATFORM_POSIX 1
 //Define to 1 if you have the `clock_gettime' function

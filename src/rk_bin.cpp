@@ -315,14 +315,14 @@ bool RK_bin::load(const char* filename)
     }
     m_header = (rk_bin_header_t*)m_buffer;
     
-    if((le32_to_cpu(m_header->tag) != 0x544f4f42) && (le32_to_cpu(m_header->tag) != 0x2052444c))
+    if((le32_to_cpu(m_header->tag) != 0x544f4f42) && (le32_to_cpu(m_header->tag) != 0x2052444c))// 'BOOT' && 'LDR '
     {
         free(m_buffer);
         m_buffer =NULL;
         return false;
     }
 
-    m_is_newidb = (le32_to_cpu(m_header->tag) == 0x2052444c);
+    m_is_newidb = (le32_to_cpu(m_header->tag) == 0x2052444c); //'LDR '
 
     if(m_header->rc4_flag)
         m_is_rc4on = 0;

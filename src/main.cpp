@@ -43,7 +43,7 @@ static void usage(void)
     printf("    rk_usb storage                                - Read storage media list\r\n");
     printf("    rk_usb storage <index>                        - Switch storage media and show list\r\n");
     printf("    rk_usb flash                                  - Detect flash and show information\r\n");
-    printf("    rk_usb flash erase <sector> <count>           - Erase flash sector\r\n");
+    printf("    rk_usb flash erase <sector> <count>           - Erase flash sector (count min 131072)\r\n");
     printf("    rk_usb flash read <sector> <count> <file>     - Read flash sector to file\r\n");
     printf("    rk_usb flash write <sector> <file>            - Write file to flash sector\r\n");
 
@@ -202,16 +202,16 @@ int main(int argc, char* argv[])
                 enum storage_type_t type = ctx.storage_read();
                 switch(type)
                 {
-                    case STORAGE_TYPE_FLASH: sec = 64; break;
-                    case STORAGE_TYPE_EMMC: sec = 64; break;
-                    case STORAGE_TYPE_SD: sec = 64; break;
-                    case STORAGE_TYPE_SD1: sec = 64; break;
+//                    case STORAGE_TYPE_FLASH: sec = 64; break;
+//                    case STORAGE_TYPE_EMMC: sec = 64; break;
+//                    case STORAGE_TYPE_SD: sec = 64; break;
+//                    case STORAGE_TYPE_SD1: sec = 64; break;
                     case STORAGE_TYPE_SPINOR: sec = 128; break;
                     case STORAGE_TYPE_SPINAND: sec = 512; break;
-                    case STORAGE_TYPE_RAM: sec = 64; break;
-                    case STORAGE_TYPE_USB: sec = 64; break;
-                    case STORAGE_TYPE_SATA: sec = 64; break;
-                    case STORAGE_TYPE_PCIE: sec = 64; break;
+//                    case STORAGE_TYPE_RAM: sec = 64; break;
+//                    case STORAGE_TYPE_USB: sec = 64; break;
+//                    case STORAGE_TYPE_SATA: sec = 64; break;
+//                    case STORAGE_TYPE_PCIE: sec = 64; break;
                     default: sec = 64; break;
                 }
                 flash_info_t info;

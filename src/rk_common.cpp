@@ -101,7 +101,7 @@ void progress_t::stop()
 
 uint32_t crc32_sum(uint32_t crc, const uint8_t* buf, size_t len)
 {
-
+#if 0
     static const uint32_t crc32_table[256] =
     {
         0x00000000, 0x04c10db7, 0x09821b6e, 0x0d4316d9, 0x130436dc, 0x17c53b6b, 0x1a862db2, 0x1e472005,
@@ -137,6 +137,26 @@ uint32_t crc32_sum(uint32_t crc, const uint8_t* buf, size_t len)
         0x89b7cd09, 0x8d76c0be, 0x8035d667, 0x84f4dbd0, 0x9ab3fbd5, 0x9e72f662, 0x9331e0bb, 0x97f0ed0c,
         0xafbfa0b1, 0xab7ead06, 0xa63dbbdf, 0xa2fcb668, 0xbcbb966d, 0xb87a9bda, 0xb5398d03, 0xb1f880b4,
     };
+#else
+    const uint32_t poly = 0x04c10db7;
+    const uint32_t WIDTH = 8 * sizeof(uint32_t);
+    const uint32_t TOPBIT = 1 << (WIDTH - 1);
+    uint32_t crc32_table[256];
+    for(size_t dividend = 0; dividend < 256; ++dividend)
+    {
+        uint32_t remainder = dividend << (WIDTH - 8);
+        for(size_t bit = 0; bit < 8; bit++)
+        {
+            if(remainder & TOPBIT)
+            {
+                remainder = (remainder << 1) ^ poly;
+            } else{
+                remainder = (remainder << 1);
+            }
+        }
+        crc32_table[dividend] = remainder;
+    }
+#endif
     while(len-- > 0)
         crc = (crc << 8) ^ crc32_table[(crc >> 24) ^ *buf++];
     return crc;
@@ -145,6 +165,7 @@ uint32_t crc32_sum(uint32_t crc, const uint8_t* buf, size_t len)
 
 uint16_t crc16_sum(uint16_t crc, const uint8_t* buf, size_t len)
 {
+#if 0
     static const uint16_t crc16_table[256] =
     {
         0x0000, 0x1021, 0x2042, 0x3063, 0x4084, 0x50a5, 0x60c6, 0x70e7,
@@ -180,6 +201,26 @@ uint16_t crc16_sum(uint16_t crc, const uint8_t* buf, size_t len)
         0xef1f, 0xff3e, 0xcf5d, 0xdf7c, 0xaf9b, 0xbfba, 0x8fd9, 0x9ff8,
         0x6e17, 0x7e36, 0x4e55, 0x5e74, 0x2e93, 0x3eb2, 0x0ed1, 0x1ef0,
     };
+#else
+    const uint16_t poly = 0x1021;
+    const uint16_t WIDTH = 8 * sizeof(uint16_t);
+    const uint16_t TOPBIT = 1 << (WIDTH - 1);
+    uint16_t crc16_table[256];
+    for(size_t dividend = 0; dividend < 256; ++dividend)
+    {
+        uint16_t remainder = dividend << (WIDTH - 8);
+        for(size_t bit = 0; bit < 8; bit++)
+        {
+            if(remainder & TOPBIT)
+            {
+                remainder = (remainder << 1) ^ poly;
+            } else{
+                remainder = (remainder << 1);
+            }
+        }
+        crc16_table[dividend] = remainder;
+    }
+#endif
     for(size_t i = 0; i < len; i++)
         crc = crc16_table[((crc >> 8) ^ *buf++) & 0xff] ^ (crc << 8);
     return crc;
