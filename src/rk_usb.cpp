@@ -1383,7 +1383,7 @@ bool RK_usb::flash_read_lba_to_file_progress(uint32_t sec, uint32_t cnt, const c
 {
     uint32_t MAXSEC = 16384;
 
-    FILE* f = fopen(filename, "w");
+    FILE* f = fopen(filename, "wb");
     if(!f)
         return false;
 
@@ -1429,7 +1429,7 @@ bool RK_usb::flash_write_lba_from_file_progress(uint32_t sec, uint32_t maxcnt, c
 {
     uint32_t MAXSEC = 16384;
 
-    FILE* f = fopen(filename, "r");
+    FILE* f = fopen(filename, "rb");
     if(!f)
         return false;
 
@@ -1442,7 +1442,7 @@ bool RK_usb::flash_write_lba_from_file_progress(uint32_t sec, uint32_t maxcnt, c
     }
     fseek(f, 0, SEEK_SET);
 
-    uint32_t cnt = uint32_t(len >> 9);
+    uint32_t cnt = uint32_t(len >> 9);// div 512
     if(len % 512 != 0)
         cnt += 1;
     if(cnt <= 0)
