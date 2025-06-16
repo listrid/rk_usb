@@ -76,6 +76,8 @@ bool RK_usb::init()
     bool found = false;
     if(m_handle)
         return true;
+    m_maskrom = false;
+    bool error_open_libusb = false;
     for(int32_t count = 0; (count < libusb_get_device_list(m_context, &list)) && !found; count++)
     {
         libusb_device_descriptor desc;
@@ -96,6 +98,7 @@ bool RK_usb::init()
                             found = true;
                             break;
                         }
+                        error_open_libusb = false;
                     }
                 }
                 if(!found)
@@ -107,6 +110,7 @@ bool RK_usb::init()
                         found  = true;
                         break;
                     }
+                    error_open_libusb = false;
                 }
             }
         }
@@ -122,11 +126,7 @@ bool RK_usb::init()
             libusb_device_descriptor desc;
             if(libusb_get_device_descriptor(libusb_get_device(m_handle), &desc) == 0)
             {
-                if((desc.bcdUSB & 0x0001) == 0x0000)
-                    m_maskrom = true;
-                else
-                    m_maskrom = false;
-
+                m_maskrom = ((desc.bcdUSB & 0x0001) == 0x0000);
                 libusb_config_descriptor* config;
                 if(libusb_get_active_config_descriptor(libusb_get_device(m_handle), &config) == 0)
                 {
@@ -154,8 +154,11 @@ bool RK_usb::init()
             }
         }
     }
+    if(error_open_libusb)
+        printf("Driver device not use libusb\r\n");
     return false;
 }
+
 
 const char* RK_usb::chip_name()
 {
@@ -163,30 +166,21 @@ const char* RK_usb::chip_name()
 }
 
 
-bool RK_usb::maskrom_upload_memory(uint32_t code, void* buf, uint64_t len, bool rc4)
+bool RK_usb::maskrom_upload_memory(uint32_t code, void* buf, uint64_t len)
 {
-    uint8_t key[16] = { 124, 78, 3, 4, 85, 5, 9, 7, 45, 44, 123, 56, 23, 13, 23, 17 };
     uint64_t total = 0;
     uint16_t crc16 = 0xffff;
     bool pend = false;
-    uint8_t* buffer;
-
-    buffer = (uint8_t*)malloc(len + 5);
+    uint8_t* buffer = (uint8_t*)malloc(len + 5);
     if(buffer)
     {
         memset(buffer, 0, len + 5);
         memcpy(buffer, buf, len);
-        if(rc4)
-        {
-            rc4_ctx rc4;
-            rc4.setkey(key, sizeof(key));
-            rc4.crypt(buffer, len);
-        }
         if((len % 4096) == 4095)
             len++;
         if((len % 4096) == 4094)
             pend = true;
-        crc16 = crc16_sum(crc16, buffer, len);
+        crc16 = rk_crc16(crc16, buffer, len);
         buffer[len++] = crc16 >> 8;
         buffer[len++] = crc16 & 0xff;
         while(total < len)
@@ -209,21 +203,22 @@ bool RK_usb::maskrom_upload_memory(uint32_t code, void* buf, uint64_t len, bool 
     return true;
 }
 
+
 bool RK_usb::maskrom_upload_file(uint32_t code, const char* filename, bool rc4)
 {
     uint64_t len;
-    void* buf;
-
-    buf = file_load(filename, &len);
-    if(!buf)
+    void* buffer = file_load(filename, &len);
+    if(!buffer)
         return false;
-    bool ret = maskrom_upload_memory(code, buf, len, rc4);
-    free(buf);
+    if(rc4)
+        rk_rc4(buffer, len);
+    bool ret = maskrom_upload_memory(code, buffer, len);
+    free(buffer);
     return ret;
 }
 
 
-bool RK_usb::maskrom_dump_arm32(uint32_t uart, uint32_t addr, uint32_t len, bool rc4)
+bool RK_usb::maskrom_dump_arm32(uint32_t uart, uint32_t addr, uint32_t len)
 {
     static uint8_t payload[] =
     {
@@ -272,10 +267,10 @@ bool RK_usb::maskrom_dump_arm32(uint32_t uart, uint32_t addr, uint32_t len, bool
     put_unaligned_le32(&payload[0x1c], uart);
     put_unaligned_le32(&payload[0x20], addr);
     put_unaligned_le32(&payload[0x24], len);
-    return maskrom_upload_memory(0x471, payload, sizeof(payload), rc4);
+    return maskrom_upload_memory(0x471, payload, sizeof(payload));
 }
 
-bool RK_usb::maskrom_dump_arm64(uint32_t uart, uint32_t addr, uint32_t len, bool rc4)
+bool RK_usb::maskrom_dump_arm64(uint32_t uart, uint32_t addr, uint32_t len)
 {
     static uint8_t payload[] =
     {
@@ -333,10 +328,10 @@ bool RK_usb::maskrom_dump_arm64(uint32_t uart, uint32_t addr, uint32_t len, bool
     put_unaligned_le32(&payload[0x0c], uart);
     put_unaligned_le32(&payload[0x10], addr);
     put_unaligned_le32(&payload[0x14], len);
-    return maskrom_upload_memory(0x471, payload, sizeof(payload), rc4);
+    return maskrom_upload_memory(0x471, payload, sizeof(payload));
 }
 
-bool RK_usb::maskrom_write_arm32(uint32_t addr, void* buf, size_t len, bool rc4)
+bool RK_usb::maskrom_write_arm32(uint32_t addr, void* buf, size_t len)
 {
     static const uint8_t payload[] =
     {
@@ -432,12 +427,12 @@ bool RK_usb::maskrom_write_arm32(uint32_t addr, void* buf, size_t len, bool rc4)
     put_unaligned_le32(tmp + sizeof(payload) + 0, addr);
     put_unaligned_le32(tmp + sizeof(payload) + 4, (uint32_t)len);
     memcpy(tmp + sizeof(payload) + 8, buf, len);
-    bool ret = maskrom_upload_memory(0x471, tmp, sizeof(payload) + 8 + len, rc4);
+    bool ret = maskrom_upload_memory(0x471, tmp, sizeof(payload) + 8 + len);
     free(tmp);
     return ret;
 }
 
-bool RK_usb::maskrom_write_arm64(uint32_t addr, void* buf, size_t len, bool rc4)
+bool RK_usb::maskrom_write_arm64(uint32_t addr, void* buf, size_t len)
 {
     static const uint8_t payload[] =
     {
@@ -474,18 +469,18 @@ bool RK_usb::maskrom_write_arm64(uint32_t addr, void* buf, size_t len, bool rc4)
     put_unaligned_le32(tmp + sizeof(payload) + 0, addr);
     put_unaligned_le32(tmp + sizeof(payload) + 4, (uint32_t)len);
     memcpy(tmp + sizeof(payload) + 8, buf, len);
-    bool ret = maskrom_upload_memory(0x471, tmp, sizeof(payload) + 8 + len, rc4);
+    bool ret = maskrom_upload_memory(0x471, tmp, sizeof(payload) + 8 + len);
     free(tmp);
     return ret;
 }
 
-bool RK_usb::maskrom_write_arm32_progress(uint32_t addr, void* buf, size_t len, bool rc4)
+bool RK_usb::maskrom_write_arm32_progress(uint32_t addr, void* buf, size_t len)
 {
     progress_t progress(len);
     while(len > 0)
     {
         size_t n = len > 16384 ? 16384 : len;
-        if(!maskrom_write_arm32(addr, buf, n, rc4))
+        if(!maskrom_write_arm32(addr, buf, n))
         {
             progress.stop();
             return false;
@@ -499,13 +494,13 @@ bool RK_usb::maskrom_write_arm32_progress(uint32_t addr, void* buf, size_t len, 
     return true;
 }
 
-bool RK_usb::maskrom_write_arm64_progress(uint32_t addr, void* buf, size_t len, bool rc4)
+bool RK_usb::maskrom_write_arm64_progress(uint32_t addr, void* buf, size_t len)
 {
     progress_t progress(len);
     while(len > 0)
     {
         size_t n = len > 16384 ? 16384 : len;
-        if(!maskrom_write_arm64(addr, buf, n, rc4))
+        if(!maskrom_write_arm64(addr, buf, n))
         {
             progress.stop();
             return false;
@@ -519,7 +514,7 @@ bool RK_usb::maskrom_write_arm64_progress(uint32_t addr, void* buf, size_t len, 
     return true;
 }
 
-bool RK_usb::maskrom_exec_arm32(uint32_t addr, bool rc4)
+bool RK_usb::maskrom_exec_arm32(uint32_t addr)
 {
     static uint8_t payload[] =
     {
@@ -537,10 +532,10 @@ bool RK_usb::maskrom_exec_arm32(uint32_t addr, bool rc4)
     };
 
     put_unaligned_le32(&payload[0x1c], addr);
-    return maskrom_upload_memory(0x471, payload, sizeof(payload), rc4);
+    return maskrom_upload_memory(0x471, payload, sizeof(payload));
 }
 
-bool RK_usb::maskrom_exec_arm64(uint32_t addr, bool rc4)
+bool RK_usb::maskrom_exec_arm64(uint32_t addr)
 {
     static uint8_t payload[] =
     {
@@ -557,12 +552,12 @@ bool RK_usb::maskrom_exec_arm64(uint32_t addr, bool rc4)
     };
 
     put_unaligned_le32(&payload[0x0c], addr);
-    return maskrom_upload_memory(0x471, payload, sizeof(payload), rc4);
+    return maskrom_upload_memory(0x471, payload, sizeof(payload));
 }
 
 enum {
-    USB_REQUEST_SIGN  = 0x55534243,    /* "USBC" */
-    USB_RESPONSE_SIGN = 0x55534253,    /* "USBS" */
+    USB_REQUEST_SIGN  = 0x55534243, // 'USBC'
+    USB_RESPONSE_SIGN = 0x55534253, // 'USBS'
 };
 
 enum {
@@ -615,11 +610,11 @@ enum {
 
 struct usb_command_t
 {
-    uint8_t opcode;      /* Opcode */
-    uint8_t subcode;     /* Subcode */
-    uint8_t address[4];  /* Address */
+    uint8_t opcode;
+    uint8_t subcode;
+    uint8_t address[4];
     uint8_t reserved6;
-    uint8_t size[2];     /* Size */
+    uint8_t size[2];
     uint8_t reserved9;
     uint8_t reserved10;
     uint8_t reserved11;
@@ -628,21 +623,21 @@ struct usb_command_t
 
 struct usb_request_t
 {
-    uint8_t signature[4]; /* Contains 'USBC' */
-    uint8_t tag[4];       /* The random unique id */
-    uint8_t length[4];    /* The data transfer length */
-    uint8_t flag;         /* Direction in bit 7, IN(0x80), OUT(0x00) */
-    uint8_t lun;          /* Lun (Flash chip select, normally 0) */
-    uint8_t cmdlen;       /* Command Length 6/10/16 */
+    uint8_t signature[4]; // Contains 'USBC'
+    uint8_t tag[4];       // The random unique id
+    uint8_t length[4];    // The data transfer length
+    uint8_t flag;         // Direction in bit 7, IN(0x80), OUT(0x00)
+    uint8_t lun;          // Lun (Flash chip select, normally 0)
+    uint8_t cmdlen;       // Command Length 6/10/16
     usb_command_t cmd;
 };
 
 struct usb_response_t
 {
-    uint8_t signature[4]; /* Contains 'USBS' */
-    uint8_t tag[4];       /* Same as original command */
-    uint8_t residue[4];   /* Amount not transferred */
-    uint8_t status;       /* Response status */
+    uint8_t signature[4]; // Contains 'USBS'
+    uint8_t tag[4];       // Same as original command
+    uint8_t residue[4];   // Amount not transferred
+    uint8_t status;       // Response status
 };
 
 #pragma pack(pop)
@@ -690,7 +685,7 @@ static inline uint32_t make_tag()
     return tag;
 }
 
-bool RK_usb::ready()
+bool RK_usb::chip_ready()
 {
     usb_request_t req;
     usb_response_t res;
@@ -707,12 +702,12 @@ bool RK_usb::ready()
         return false;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
-    if((get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN) || (memcmp(&res.tag[0], &req.tag[0], 4) != 0))
+    if(get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN)
         return false;
     return true;
 }
 
-bool RK_usb::version(uint8_t* buf)
+bool RK_usb::version(uint8_t* buf_16)
 {
     usb_request_t req;
     usb_response_t res;
@@ -727,11 +722,11 @@ bool RK_usb::version(uint8_t* buf)
 
     if(!usb_bulk_send(&req, sizeof(usb_request_t)))
        return false;
-    if(!usb_bulk_recv(buf, 16))
+    if(!usb_bulk_recv(buf_16, 16))
         return false;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
-    if((get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN) || (memcmp(&res.tag[0], &req.tag[0], 4) != 0))
+    if(get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN)
         return false;
     return true;
 }
@@ -754,7 +749,7 @@ bool RK_usb::capability(uint8_t* buf)
         return false;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
-    if((get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN) || (memcmp(&res.tag[0], &req.tag[0], 4) != 0))
+    if(get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN)
         return false;
     return true;
 }
@@ -821,7 +816,7 @@ bool RK_usb::reset(bool maskrom)
     }
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
-    if((get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN) || (memcmp(&res.tag[0], &req.tag[0], 4) != 0))
+    if(get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN)
         return false;
     return true;
 }
@@ -846,7 +841,7 @@ bool RK_usb::exec(uint32_t addr, uint32_t dtb)
         return false;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
-    if((get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN) || (memcmp(&res.tag[0], &req.tag[0], 4) != 0))
+    if(get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN)
         return false;
     return true;
 }
@@ -872,7 +867,7 @@ bool RK_usb::read_raw(uint32_t addr, void* buf, size_t len)
         return false;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
-    if((get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN) || (memcmp(&res.tag[0], &req.tag[0], 4) != 0))
+    if(get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN)
         return false;
     return true;
 }
@@ -897,7 +892,7 @@ bool RK_usb::write_raw(uint32_t addr, void* buf, size_t len)
         return false;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
-    if((get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN) || (memcmp(&res.tag[0], &req.tag[0], 4) != 0))
+    if(get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN)
         return false;
     return true;
 }
@@ -982,7 +977,7 @@ bool RK_usb::otp_read(uint8_t* buf, size_t len)
         return false;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
-    if((get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN) || (memcmp(&res.tag[0], &req.tag[0], 4) != 0))
+    if(get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN)
         return false;
     return true;
 }
@@ -991,7 +986,7 @@ bool RK_usb::sn_read(char* sn)
 {
     if(sn)
     {
-        char buf[512];
+        char buf[2048];
         if(flash_read_lba(0xfff00001, 1, buf))
         {
             uint32_t valid = get_unaligned_le32(&buf[0]);
@@ -1048,7 +1043,7 @@ bool RK_usb::vs_read(uint16_t type, uint16_t index, uint8_t* buf, size_t len)
         return false;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
-    if((get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN) || (memcmp(&res.tag[0], &req.tag[0], 4) != 0))
+    if(get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN)
         return false;
     return true;
 }
@@ -1076,7 +1071,7 @@ bool RK_usb::vs_write(uint16_t type, uint16_t index, uint8_t* buf, size_t len)
         return false;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
-    if((get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN) || (memcmp(&res.tag[0], &req.tag[0], 4) != 0))
+    if(get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN)
         return false;
     return true;
 }
@@ -1101,7 +1096,7 @@ enum storage_type_t RK_usb::storage_read()
         return STORAGE_TYPE_UNKNOWN;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return STORAGE_TYPE_UNKNOWN;
-    if((get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN) || (memcmp(&res.tag[0], &req.tag[0], 4) != 0))
+    if(get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN)
         return STORAGE_TYPE_UNKNOWN;
     enum storage_type_t type = (enum storage_type_t)get_unaligned_le32(buf);
     switch(type)
@@ -1154,7 +1149,7 @@ bool RK_usb::storage_switch(enum storage_type_t type)
         return false;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
-    if((get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN) || (memcmp(&res.tag[0], &req.tag[0], 4) != 0))
+    if(get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN)
         return false;
     return true;
 }
@@ -1177,7 +1172,7 @@ bool RK_usb::flash_detect(flash_info_t* info)
         return false;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
-    if((get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN) || (memcmp(&res.tag[0], &req.tag[0], 4) != 0))
+    if(get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN)
         return false;
     memset(&req, 0, sizeof(usb_request_t));
     put_unaligned_be32(&req.signature[0], USB_REQUEST_SIGN);
@@ -1192,7 +1187,7 @@ bool RK_usb::flash_detect(flash_info_t* info)
         return false;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
-    if((get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN) || (memcmp(&res.tag[0], &req.tag[0], 4) != 0))
+    if(get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN)
         return false;
     return true;
 }
@@ -1216,7 +1211,7 @@ bool RK_usb::flash_erase_lba_raw(uint32_t sec, uint32_t cnt)
         return false;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
-    if((get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN) || (memcmp(&res.tag[0], &req.tag[0], 4) != 0))
+    if(get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN)
         return false;
     return true;
 }
@@ -1244,7 +1239,7 @@ bool RK_usb::flash_read_lba_raw(uint32_t sec, uint32_t cnt, void* buf)
         return false;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
-    if((get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN) || (memcmp(&res.tag[0], &req.tag[0], 4) != 0))
+    if(get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN)
         return false;
     return true;
 }
@@ -1271,7 +1266,7 @@ bool RK_usb::flash_write_lba_raw(uint32_t sec, uint32_t cnt, void* buf)
         return false;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
-    if((get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN) || (memcmp(&res.tag[0], &req.tag[0], 4) != 0))
+    if(get_unaligned_be32(&res.signature[0]) != USB_RESPONSE_SIGN)
         return false;
     return true;
 }
@@ -1465,12 +1460,17 @@ bool RK_usb::flash_write_lba_from_file_progress(uint32_t sec, uint32_t maxcnt, c
     {
         uint32_t n = cnt > MAXSEC ? MAXSEC : cnt;
         memset(buf, 0, MAXSEC << 9);
-        if(fread(buf, 512, n, f) != n)
+        uint32_t r_n = fread(buf, 1, n*512, f);
+        if(r_n != n*512)
         {
-            free(buf);
-            fclose(f);
-            return false;
+            if(r_n != len)
+            {
+                free(buf);
+                fclose(f);
+                return false;
+            }
         }
+        len -= r_n;
         if(!flash_write_lba_raw(sec, n, buf))
         {
             free(buf);

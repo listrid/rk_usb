@@ -26,8 +26,11 @@ public:
     void stop();
 };
 
-uint16_t crc16_sum(uint16_t crc, const uint8_t* buf, size_t len);
-uint32_t crc32_sum(uint32_t crc, const uint8_t* buf, size_t len);
+// !!! Not standard CRC32 CRC16
+uint32_t rk_crc32(uint32_t crc, const void* buf, size_t len);
+uint16_t rk_crc16(uint16_t crc, const void* buf, size_t len);
+
+void rk_rc4(const void* buf, size_t len);
 
 class rc4_ctx
 {
@@ -35,7 +38,7 @@ class rc4_ctx
     size_t  m_i;
     size_t  m_j;
 public:
-    void setkey(uint8_t* key, size_t len);
+    void setkey(const uint8_t* key, size_t len);
     void crypt(uint8_t* buf, size_t len);
 };
 

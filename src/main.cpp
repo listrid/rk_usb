@@ -18,22 +18,27 @@ static const char* manufacturer[] =
     "SanDisk",
 };
 
+
+//#define disable_XZ
+
 static void usage(void)
 {
     printf("rk_usb - https://github.com/listrid/rk_usb\r\n");
-    printf(" fork xrock(v1.1.3) - https://github.com/xboot/xrock\r\n");
+    printf(" fork xrock - https://github.com/xboot/xrock\r\n");
     printf("usage:\r\n");
-    printf("    rk_usb maskrom <ddr> <usbplug> [--rc4]        - Initial chip using ddr and usbplug in maskrom mode\r\n");
+    printf("    rk_usb maskrom <ddr> <usbplug>                - Initial chip using ddr and usbplug in maskrom mode\r\n");
     printf("    rk_usb download <loader>                      - Initial chip using loader in maskrom mode\r\n");
     printf("    rk_usb upgrade <loader>                       - Upgrade loader to flash in loader mode\r\n");
     printf("    rk_usb ready                                  - Show chip ready or not\r\n");
     printf("    rk_usb version                                - Show chip version\r\n");
     printf("    rk_usb capability                             - Show capability information\r\n");
     printf("    rk_usb reset [maskrom]                        - Reset chip to normal or maskrom mode\n");
+#if !defined(disable_XZ)
     printf("    rk_usb dump <address> <length>                - Dump memory region in hex format\r\n");
     printf("    rk_usb read <address> <length> <file>         - Read memory to file\r\n");
     printf("    rk_usb write <address> <file>                 - Write file to memory\r\n");
     printf("    rk_usb exec <address> [dtb]                   - Call function address(Recommend to use extra command)\r\n");
+#endif
     printf("    rk_usb otp <length>                           - Dump otp memory in hex format\r\n");
     printf("    rk_usb sn                                     - Read serial number\r\n");
     printf("    rk_usb sn <string>                            - Write serial number\r\n");
@@ -43,21 +48,19 @@ static void usage(void)
     printf("    rk_usb storage                                - Read storage media list\r\n");
     printf("    rk_usb storage <index>                        - Switch storage media and show list\r\n");
     printf("    rk_usb flash                                  - Detect flash and show information\r\n");
-    printf("    rk_usb flash erase <sector> <count>           - Erase flash sector (count min 131072)\r\n");
-    printf("    rk_usb flash read <sector> <count> <file>     - Read flash sector to file\r\n");
+    printf("    rk_usb flash erase <sector> <count>           - Erase flash sector \r\n");
+    printf("    rk_usb flash read  <sector> <count> <file>    - Read flash sector to file\r\n");
     printf("    rk_usb flash write <sector> <file>            - Write file to flash sector\r\n");
 
     printf("extra:\r\n");
-    printf("    rk_usb extra maskrom [--rc4] [--sram <file> --delay <ms>] [--dram <file> --delay <ms>] [...]\r\n");
-    printf("    rk_usb extra dump-arm32 [--rc4] --uart <register> <address> <length>\r\n");
-    printf("    rk_usb extra dump-arm64 [--rc4] --uart <register> <address> <length>\r\n");
-    printf("    rk_usb extra write-arm32 [--rc4] <address> <file>\r\n");
-    printf("    rk_usb extra write-arm64 [--rc4] <address> <file>\r\n");
-    printf("    rk_usb extra exec-arm32 [--rc4] <address>\r\n");
-    printf("    rk_usb extra exec-arm64 [--rc4] <address>\r\n");
+    printf("    rk_usb extra maskrom [--rc4 on|off] [--sram <file> --delay <ms>] [--dram <file> --delay <ms>] [...]\r\n");
+    printf("    rk_usb extra dump-arm32  <uart_register> <address> <length>\r\n");
+    printf("    rk_usb extra dump-arm64  <uart_register> <address> <length>\r\n");
+    printf("    rk_usb extra write-arm32 <address> <file>\r\n");
+    printf("    rk_usb extra write-arm64 <address> <file>\r\n");
+    printf("    rk_usb extra exec-arm32  <address>\r\n");
+    printf("    rk_usb extra exec-arm64  <address>\r\n");
 }
-
-#define ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
 
 static inline uint32_t __get_unaligned_le32(const uint8_t* p) { return (p[0] << 0) | (p[1] << 8) | (p[2] << 16) | (p[3] << 24); }
 static inline uint32_t get_unaligned_le32(const void* p) { return __get_unaligned_le32((const uint8_t*)p); }
@@ -65,13 +68,15 @@ static inline uint32_t get_unaligned_le32(const void* p) { return __get_unaligne
 int main(int argc, char* argv[])
 {
     RK_usb ctx;
+    argc -= 1;
+    argv += 1;
 
-    if(argc < 2)
+    if(argc == 0)
     {
         usage();
         return 0;
     }
-    for(int i = 1; i < argc; i++)
+    for(int i = 0; i < argc; i++)
     {
         if(!strcmp(argv[i], "-h") || !strcmp(argv[i], "--help"))
         {
@@ -84,115 +89,113 @@ int main(int argc, char* argv[])
         printf("ERROR: Can't found any supported rockchip chips\r\n");
         return -1;
     }
-    if(!strcmp(argv[1], "maskrom"))
+    if(!ctx.chip_is_maskrom())
     {
-        argc -= 2;
-        argv += 2;
-        if(argc == 2 || argc == 3)
+        printf("ERROR: The chip '%s' does not in maskrom mode\r\n", ctx.chip_name());
+        return -1;
+    }
+
+    const char* cmd = argv[0];
+    argc -= 1;
+    argv += 1;
+
+    if(!strcmp(cmd, "maskrom"))
+    {
+        if(argc == 2)
         {
-            if(ctx.is_maskrom())
+            if(!ctx.maskrom_upload_file(0x471, argv[0], false))
             {
-                bool rc4 = false;
-                if((argc == 3) && !strcmp(argv[2], "--rc4"))
-                    rc4 = true;
-                if(!ctx.maskrom_upload_file(0x471, argv[0], rc4))
-                {
-                    printf("Error sram upload '%s'\r\n", argv[0]);
-                    return -1;
-                }
-#ifdef _WIN32
-                Sleep(10);
-#else
-                usleep(10*1000);
-#endif
-                if(!ctx.maskrom_upload_file(0x472, argv[1], rc4))
-                {
-                    printf("Error dram upload '%s'\r\n", argv[1]);
-                    return -1;
-                }
-#ifdef _WIN32
-                Sleep(10);
-#else
-                usleep(10*1000);
-#endif
-                return 0;
-            }else{
-                printf("ERROR: The chip '%s' does not in maskrom mode\r\n", ctx.chip_name());
+                printf("Error sram upload '%s'\r\n", argv[0]);
+                return -1;
             }
+#ifdef _WIN32
+            Sleep(10);
+#else
+            usleep(10*1000);
+#endif
+            if(!ctx.maskrom_upload_file(0x472, argv[1], false))
+            {
+                printf("Error dram upload '%s'\r\n", argv[1]);
+                return -1;
+            }
+#ifdef _WIN32
+            Sleep(10);
+#else
+            usleep(10*1000);
+#endif
+            return 0;
         }else{
             usage();
         }
         return -1;
     }
     
-    if(!strcmp(argv[1], "download"))
+    if(!strcmp(cmd, "download"))
     {
-        argc -= 2;
-        argv += 2;
         if(argc == 1)
         {
-            if(ctx.is_maskrom())
+            RK_bin rk_bin;
+            if(rk_bin.load(argv[0]))
             {
-                RK_bin rk_bin;
-                if(rk_bin.load(argv[0]))
+                bool findHeader = false;
+                for(uint32_t i = 0; i < rk_bin.m_count_entry; i++)
                 {
-                    for(uint32_t i = 0; i < rk_bin.m_nentry; i++)
+                    RK_Boot_Entry_t* e = rk_bin.m_entry[i];
+                    char name[32];
+                    e->GetName(name);
+                    if(e->m_type == RK_Boot_Entry_Type_t::RKLOADER_ENTRY_471)
                     {
-                        rk_bin_entry_t* e = rk_bin.m_entry[i];
-                        char str[256];
-                        if(e->type == RKLOADER_ENTRY_471)
+                        if(e->m_size == 0x800 && !findHeader)
                         {
-                            void* buf = (char*)rk_bin.m_buffer + get_unaligned_le32(&e->data_offset);
-                            uint64_t len = get_unaligned_le32(&e->data_size);
-                            uint32_t delay = get_unaligned_le32(&e->data_delay);
-
-                            printf("Downloading '%s'\r\n", wide2str(str, (uint8_t*)&e->name[0], sizeof(e->name)));
-                            if(!ctx.maskrom_upload_memory(0x471, buf, len, rk_bin.m_is_rc4on))
-                            {
-                                printf("Error\r\n");
-                                return -1;
-                            }
+                            findHeader = true;
+                            continue;
+                        }
+                        void* buf = (char*)rk_bin.m_buffer + get_unaligned_le32(&e->m_offset);
+                        uint64_t len = get_unaligned_le32(&e->m_size);
+                        uint32_t delay = get_unaligned_le32(&e->m_delay);
+                        printf("Downloading '%s'\r\n", name);
+                        if(!ctx.maskrom_upload_memory(0x471, buf, len))
+                            printf("Warning: failed load init_ddr\r\n");
 #ifdef _WIN32
-                            Sleep(delay);
+                        Sleep(delay);
 #else
-                            usleep(delay*1000);
+                        usleep(delay*1000);
 #endif
-                        }else if(e->type == RKLOADER_ENTRY_472)
+                        continue;
+                    }
+                    if(e->m_type == RK_Boot_Entry_Type_t::RKLOADER_ENTRY_472)
+                    {
+                        void* buf = (char*)rk_bin.m_buffer + get_unaligned_le32(&e->m_offset);
+                        uint64_t len   = get_unaligned_le32(&e->m_size);
+                        uint32_t delay = get_unaligned_le32(&e->m_delay);
+                        printf("Downloading '%s'\r\n", name);
+                        if(!ctx.maskrom_upload_memory(0x472, buf, len))
                         {
-                            void* buf = (char*)rk_bin.m_buffer + get_unaligned_le32(&e->data_offset);
-                            uint64_t len = get_unaligned_le32(&e->data_size);
-                            uint32_t delay = get_unaligned_le32(&e->data_delay);
-
-                            printf("Downloading '%s'\r\n", wide2str(str, (uint8_t*)&e->name[0], sizeof(e->name)));
-                            if(!ctx.maskrom_upload_memory(0x472, buf, len, rk_bin.m_is_rc4on))
-                            {
-                                printf("Error\r\n");
-                                return -1;
-                            }
-#ifdef _WIN32
-                            Sleep(delay);
-#else
-                            usleep(delay*1000);
-#endif
-                        }else{
-                            printf("Error: RKLOADER_ENTRY type\r\n");
+                            printf("Error upload ddr\r\n");
                             return -1;
                         }
+#ifdef _WIN32
+                        Sleep(delay);
+#else
+                        usleep(delay*1000);
+#endif
+                        continue;
                     }
-                    return 0;
-                }else
-                    printf("ERROR: Not a valid loader '%s'\r\n", argv[0]);
-            }else
-                printf("ERROR: The chip '%s' does not in maskrom mode\r\n", ctx.chip_name());
+                    if(e->m_type == RK_Boot_Entry_Type_t::RKLOADER_ENTRY_LOADER)
+                        continue;
+                    printf("Error: RKLOADER_ENTRY type '0x%.8X\r\n", e->m_type);
+                    return -1;
+                }
+                return 0;
+            } else
+                printf("ERROR: Not a valid loader '%s'\r\n", argv[0]);
         }else
             usage();
         return -1;
     }
 
-    if(!strcmp(argv[1], "upgrade"))
+    if(!strcmp(cmd, "upgrade"))
     {
-        argc -= 2;
-        argv += 2;
         if(argc == 1)
         {
             RK_bin rk_bin;
@@ -207,7 +210,7 @@ int main(int argc, char* argv[])
 //                    case STORAGE_TYPE_SD: sec = 64; break;
 //                    case STORAGE_TYPE_SD1: sec = 64; break;
                     case STORAGE_TYPE_SPINOR: sec = 128; break;
-                    case STORAGE_TYPE_SPINAND: sec = 512; break;
+                    case STORAGE_TYPE_SPINAND: sec = 256; break;
 //                    case STORAGE_TYPE_RAM: sec = 64; break;
 //                    case STORAGE_TYPE_USB: sec = 64; break;
 //                    case STORAGE_TYPE_SATA: sec = 64; break;
@@ -217,7 +220,7 @@ int main(int argc, char* argv[])
                 flash_info_t info;
                 if(ctx.flash_detect(&info))
                 {
-                    if(!ctx.flash_write_lba_progress(sec, uint32_t(rk_bin.m_idblen / 512), rk_bin.m_idbbuf))
+                    if(!ctx.flash_write_lba_progress(sec, uint32_t(rk_bin.m_flash_len / 512), rk_bin.m_flash_data))
                     {
                         printf("Failed to write flash\r\n");
                         return -1;
@@ -232,13 +235,11 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    if(!strcmp(argv[1], "ready"))
+    if(!strcmp(cmd, "ready"))
     {
-        argc -= 2;
-        argv += 2;
         if(argc == 0)
         {
-            if(ctx.ready())
+            if(ctx.chip_ready())
             {
                 printf("The chip is ready\r\n");
                 return 0;
@@ -249,16 +250,14 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    if(!strcmp(argv[1], "version"))
+    if(!strcmp(cmd, "version"))
     {
-        argc -= 2;
-        argv += 2;
         if(argc == 0)
         {
             uint8_t buf[16];
             if(ctx.version(buf))
             {
-                printf("%s(%c%c%c%c): 0x%02x%02x%02x%02x 0x%02x%02x%02x%02x 0x%02x%02x%02x%02x 0x%02x%02x%02x%02x\r\n", ctx.chip_name(),
+                printf("chip %s: %c%c%c%c  0x%02x%02x%02x%02x\n\n 0x%02x%02x%02x%02x\n 0x%02x%02x%02x%02x\n 0x%02x%02x%02x%02x\r\n", ctx.chip_name(),
                     buf[ 3], buf[ 2], buf[ 1], buf[ 0],
                     buf[ 3], buf[ 2], buf[ 1], buf[ 0],
                     buf[ 7], buf[ 6], buf[ 5], buf[ 4],
@@ -272,10 +271,8 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    if(!strcmp(argv[1], "capability"))
+    if(!strcmp(cmd, "capability"))
     {
-        argc -= 2;
-        argv += 2;
         if(argc == 0)
         {
             uint8_t buf[8];
@@ -283,19 +280,19 @@ int main(int argc, char* argv[])
             {
                 printf("Capability: %02x %02x %02x %02x %02x %02x %02x %02x\r\n",
                     buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]);
-                printf("    Direct LBA: %s\r\n", (buf[0] & (1 << 0)) ? "enabled" : "disabled");
-                printf("    Vendor Storage: %s\r\n", (buf[0] & (1 << 1)) ? "enabled" : "disabled");
-                printf("    First 4M Access: %s\r\n", (buf[0] & (1 << 2)) ? "enabled" : "disabled");
-                printf("    Read LBA: %s\r\n", (buf[0] & (1 << 3)) ? "enabled" : "disabled");
-                printf("    New Vendor Storage: %s\r\n", (buf[0] & (1 << 4)) ? "enabled" : "disabled");
-                printf("    Read Com Log: %s\r\n", (buf[0] & (1 << 5)) ? "enabled" : "disabled");
-                printf("    Read IDB Config: %s\r\n", (buf[0] & (1 << 6)) ? "enabled" : "disabled");
+                printf("    Direct LBA: %s\r\n",       (buf[0] & (1 << 0)) ? "enabled" : "disabled");
+                printf("    Vendor Storage: %s\r\n",   (buf[0] & (1 << 1)) ? "enabled" : "disabled");
+                printf("    First 4M Access: %s\r\n",  (buf[0] & (1 << 2)) ? "enabled" : "disabled");
+                printf("    Read LBA: %s\r\n",         (buf[0] & (1 << 3)) ? "enabled" : "disabled");
+                printf("    New Vendor Storage: %s\r\n",(buf[0] & (1 << 4)) ? "enabled" : "disabled");
+                printf("    Read Com Log: %s\r\n",     (buf[0] & (1 << 5)) ? "enabled" : "disabled");
+                printf("    Read IDB Config: %s\r\n",  (buf[0] & (1 << 6)) ? "enabled" : "disabled");
                 printf("    Read Secure Mode: %s\r\n", (buf[0] & (1 << 7)) ? "enabled" : "disabled");
-                printf("    New IDB: %s\r\n", (buf[1] & (1 << 0)) ? "enabled" : "disabled");
-                printf("    Switch Storage: %s\r\n", (buf[1] & (1 << 1)) ? "enabled" : "disabled");
-                printf("    LBA Parity: %s\r\n", (buf[1] & (1 << 2)) ? "enabled" : "disabled");
-                printf("    Read OTP Chip: %s\r\n", (buf[1] & (1 << 3)) ? "enabled" : "disabled");
-                printf("    Switch USB3: %s\r\n", (buf[1] & (1 << 4)) ? "enabled" : "disabled");
+                printf("    New IDB: %s\r\n",          (buf[1] & (1 << 0)) ? "enabled" : "disabled");
+                printf("    Switch Storage: %s\r\n",   (buf[1] & (1 << 1)) ? "enabled" : "disabled");
+                printf("    LBA Parity: %s\r\n",       (buf[1] & (1 << 2)) ? "enabled" : "disabled");
+                printf("    Read OTP Chip: %s\r\n",    (buf[1] & (1 << 3)) ? "enabled" : "disabled");
+                printf("    Switch USB3: %s\r\n",      (buf[1] & (1 << 4)) ? "enabled" : "disabled");
                 return 0;
             }else
                 printf("Failed to show capability information\r\n");
@@ -304,11 +301,9 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    if(!strcmp(argv[1], "reset"))
+    if(!strcmp(cmd, "reset"))
     {
-        argc -= 2;
-        argv += 2;
-        if(argc > 0)
+        if(argc == 1)
         {
             if(!strcmp(argv[0], "maskrom"))
             {
@@ -322,11 +317,9 @@ int main(int argc, char* argv[])
         }
         return -1;
     }
-    
-    if(!strcmp(argv[1], "dump"))
+#if !defined(disable_XZ)
+    if(!strcmp(cmd, "dump"))
     {
-        argc -= 2;
-        argv += 2;
         if(argc == 2)
         {
             uint32_t addr = strtoul(argv[0], NULL, 0);
@@ -347,10 +340,8 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    if(!strcmp(argv[1], "read"))
+    if(!strcmp(cmd, "read"))
     {
-        argc -= 2;
-        argv += 2;
         if(argc == 3)
         {
             uint32_t addr = strtoul(argv[0], NULL, 0);
@@ -371,10 +362,8 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    if(!strcmp(argv[1], "write"))
+    if(!strcmp(cmd, "write"))
     {
-        argc -= 2;
-        argv += 2;
         if(argc == 2)
         {
             uint32_t addr = strtoul(argv[0], NULL, 0);
@@ -394,10 +383,8 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    if(!strcmp(argv[1], "exec"))
+    if(!strcmp(cmd, "exec"))
     {
-        argc -= 2;
-        argv += 2;
         if(argc >= 1)
         {
             uint32_t addr = strtoul(argv[0], NULL, 0);
@@ -408,13 +395,11 @@ int main(int argc, char* argv[])
             usage();
         return -1;
     }
-    
-    if(!strcmp(argv[1], "otp"))
+#endif
+    if(!strcmp(cmd, "otp"))
     {
         if(ctx.capability_support(CAPABILITY_TYPE_READ_OTP_CHIP))
         {
-            argc -= 2;
-            argv += 2;
             if(argc == 1)
             {
                 size_t len = strtoul(argv[0], NULL, 0);
@@ -439,12 +424,10 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    if(!strcmp(argv[1], "sn"))
+    if(!strcmp(cmd, "sn"))
     {
         if(ctx.capability_support(CAPABILITY_TYPE_VENDOR_STORAGE) || ctx.capability_support(CAPABILITY_TYPE_NEW_VENDOR_STORAGE))
         {
-            argc -= 2;
-            argv += 2;
             if(argc == 0)
             {
                 char sn[512 - 8 + 1];
@@ -471,12 +454,10 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    if(!strcmp(argv[1], "vs"))
+    if(!strcmp(cmd, "vs"))
     {
         if(ctx.capability_support(CAPABILITY_TYPE_VENDOR_STORAGE) || ctx.capability_support(CAPABILITY_TYPE_NEW_VENDOR_STORAGE))
         {
-            argc -= 2;
-            argv += 2;
             if(argc > 0)
             {
                 if(!strcmp(argv[0], "dump") && (argc >= 3))
@@ -542,24 +523,22 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    if(!strcmp(argv[1], "storage"))
+    if(!strcmp(cmd, "storage"))
     {
-        argc -= 2;
-        argv += 2;
         if(argc == 0)
         {
             enum storage_type_t type = ctx.storage_read();
             printf("%s 0.UNKNOWN\r\n", (type == STORAGE_TYPE_UNKNOWN) ? "-->" : "   ");
-            printf("%s 1.FLASH\r\n", (type == STORAGE_TYPE_FLASH) ? "-->" : "   ");
-            printf("%s 2.EMMC\r\n", (type == STORAGE_TYPE_EMMC) ? "-->" : "   ");
-            printf("%s 3.SD\r\n", (type == STORAGE_TYPE_SD) ? "-->" : "   ");
-            printf("%s 4.SD1\r\n", (type == STORAGE_TYPE_SD1) ? "-->" : "   ");
-            printf("%s 5.SPINOR\r\n", (type == STORAGE_TYPE_SPINOR) ? "-->" : "   ");
+            printf("%s 1.FLASH\r\n",   (type == STORAGE_TYPE_FLASH) ? "-->" : "   ");
+            printf("%s 2.EMMC\r\n",    (type == STORAGE_TYPE_EMMC) ? "-->" : "   ");
+            printf("%s 3.SD\r\n",      (type == STORAGE_TYPE_SD) ? "-->" : "   ");
+            printf("%s 4.SD1\r\n",     (type == STORAGE_TYPE_SD1) ? "-->" : "   ");
+            printf("%s 5.SPINOR\r\n",  (type == STORAGE_TYPE_SPINOR) ? "-->" : "   ");
             printf("%s 6.SPINAND\r\n", (type == STORAGE_TYPE_SPINAND) ? "-->" : "   ");
-            printf("%s 7.RAM\r\n", (type == STORAGE_TYPE_RAM) ? "-->" : "   ");
-            printf("%s 8.USB\r\n", (type == STORAGE_TYPE_USB) ? "-->" : "   ");
-            printf("%s 9.SATA\r\n", (type == STORAGE_TYPE_SATA) ? "-->" : "   ");
-            printf("%s10.PCIE\r\n", (type == STORAGE_TYPE_PCIE) ? "-->" : "   ");
+            printf("%s 7.RAM\r\n",     (type == STORAGE_TYPE_RAM) ? "-->" : "   ");
+            printf("%s 8.USB\r\n",     (type == STORAGE_TYPE_USB) ? "-->" : "   ");
+            printf("%s 9.SATA\r\n",    (type == STORAGE_TYPE_SATA) ? "-->" : "   ");
+            printf("%s10.PCIE\r\n",    (type == STORAGE_TYPE_PCIE) ? "-->" : "   ");
             return 0;
         }
         if(ctx.capability_support(CAPABILITY_TYPE_SWITCH_STORAGE))
@@ -590,14 +569,14 @@ int main(int argc, char* argv[])
                 }
                 type = ctx.storage_read();
                 printf("%s 0.UNKNOWN\r\n", (type == STORAGE_TYPE_UNKNOWN) ? "-->" : "   ");
-                printf("%s 1.FLASH\r\n", (type == STORAGE_TYPE_FLASH) ? "-->" : "   ");
+                printf("%s 1.FLASH\r\n",   (type == STORAGE_TYPE_FLASH) ? "-->" : "   ");
                 printf("%s 2.EMMC\r\n", (type == STORAGE_TYPE_EMMC) ? "-->" : "   ");
-                printf("%s 3.SD\r\n", (type == STORAGE_TYPE_SD) ? "-->" : "   ");
-                printf("%s 4.SD1\r\n", (type == STORAGE_TYPE_SD1) ? "-->" : "   ");
-                printf("%s 5.SPINOR\r\n", (type == STORAGE_TYPE_SPINOR) ? "-->" : "   ");
+                printf("%s 3.SD\r\n",   (type == STORAGE_TYPE_SD) ? "-->" : "   ");
+                printf("%s 4.SD1\r\n",  (type == STORAGE_TYPE_SD1) ? "-->" : "   ");
+                printf("%s 5.SPINOR\r\n",  (type == STORAGE_TYPE_SPINOR) ? "-->" : "   ");
                 printf("%s 6.SPINAND\r\n", (type == STORAGE_TYPE_SPINAND) ? "-->" : "   ");
-                printf("%s 7.RAM\r\n", (type == STORAGE_TYPE_RAM) ? "-->" : "   ");
-                printf("%s 8.USB\r\n", (type == STORAGE_TYPE_USB) ? "-->" : "   ");
+                printf("%s 7.RAM\r\n",  (type == STORAGE_TYPE_RAM) ? "-->" : "   ");
+                printf("%s 8.USB\r\n",  (type == STORAGE_TYPE_USB) ? "-->" : "   ");
                 printf("%s 9.SATA\r\n", (type == STORAGE_TYPE_SATA) ? "-->" : "   ");
                 printf("%s10.PCIE\r\n", (type == STORAGE_TYPE_PCIE) ? "-->" : "   ");
                 return 0;
@@ -608,17 +587,15 @@ int main(int argc, char* argv[])
         return -1;
     }
     
-    if(!strcmp(argv[1], "flash"))
+    if(!strcmp(cmd, "flash"))
     {
-        argc -= 2;
-        argv += 2;
         if(argc == 0)
         {
             flash_info_t info;
             if(ctx.flash_detect(&info))
             {
                 printf("Flash info:\r\n");
-                printf("    Manufacturer: %s (%d)\r\n", (info.manufacturer_id < ARRAY_SIZE(manufacturer))
+                printf("    Manufacturer: %s (%d)\r\n", (info.manufacturer_id < sizeof(manufacturer)/sizeof(manufacturer[0]))
                                 ? manufacturer[info.manufacturer_id] : "Unknown", info.manufacturer_id);
                 printf("    Capacity: %dMB\r\n", info.sector_total >> 11);
                 printf("    Sector size: %d\r\n", 512);
@@ -710,61 +687,69 @@ int main(int argc, char* argv[])
         }
         return -1;
     }
-    
-    if(!strcmp(argv[1], "extra"))
+
+    if(!strcmp(cmd, "extra"))
     {
-        argc -= 2;
-        argv += 2;
         if(!strcmp(argv[0], "maskrom"))
         {
             argc -= 1;
             argv += 1;
             if(argc >= 2)
             {
-                if(ctx.is_maskrom())
+                bool rc4 = false;
+                for(int i = 0; i < argc; i++)
                 {
-                    bool rc4 = false;
-                    for(int i = 0; i < argc; i++)
+                    if(!strcmp(argv[i], "--rc4") && (argc > i + 1))
                     {
-                        if(!strcmp(argv[i], "--rc4") && (argc > i + 1))
+                        i++;
+                        if(!strcmp(argv[i], "on"))
                         {
                             rc4 = true;
-                        }else if(!strcmp(argv[i], "--sram") && (argc > i + 1))
-                        {
-                            if(!ctx.maskrom_upload_file(0x471, argv[i + 1], rc4))
-                            {
-                                printf("Error sram upload '%s'\r\n", argv[i + 1]);
-                                return -1;
-                            }
-                            i++;
-                        }else if(!strcmp(argv[i], "--dram") && (argc > i + 1))
-                        {
-                            if(!ctx.maskrom_upload_file(0x472, argv[i + 1], rc4))
-                            {
-                                printf("Error dram upload '%s'\r\n", argv[i + 1]);
-                                return -1;
-                            }
-                            i++;
-                        }else if(!strcmp(argv[i], "--delay") && (argc > i + 1))
-                        {
-                            uint32_t delay = strtoul(argv[i + 1], NULL, 0);
-#ifdef _WIN32
-                            Sleep(delay);
-#else
-                            usleep(delay*1000);
-#endif
-                            i++;
-                        }else if(*argv[i] == '-')
-                        {
-                            usage();
-                        }else if(*argv[i] != '-' && strcmp(argv[i], "-") != 0)
-                        {
-                            usage();
+                            continue;
                         }
+                        if(!strcmp(argv[i], "off"))
+                        {
+                            rc4 = false;
+                            continue;
+                        }
+                        printf("Incorrect param '%s'\r\n", argv[i]);
+                        return -1;
                     }
-                    return 0;
-                }else
-                    printf("ERROR: The chip '%s' does not in maskrom mode\r\n", ctx.chip_name());
+                    if(!strcmp(argv[i], "--sram") && (argc > i + 1))
+                    {
+                        if(!ctx.maskrom_upload_file(0x471, argv[i + 1], rc4))
+                        {
+                            printf("Error sram upload '%s'\r\n", argv[i + 1]);
+                            return -1;
+                        }
+                        i++;
+                        continue;
+                    }
+                    if(!strcmp(argv[i], "--dram") && (argc > i + 1))
+                    {
+                        if(!ctx.maskrom_upload_file(0x472, argv[i + 1], rc4))
+                        {
+                            printf("Error dram upload '%s'\r\n", argv[i + 1]);
+                            return -1;
+                        }
+                        i++;
+                        continue;
+                    }
+                    if(!strcmp(argv[i], "--delay") && (argc > i + 1))
+                    {
+                        uint32_t delay = strtoul(argv[i + 1], NULL, 0);
+#ifdef _WIN32
+                        Sleep(delay);
+#else
+                        usleep(delay*1000);
+#endif
+                        i++;
+                        continue;
+                    }
+                    printf("Incorrect param '%s'\r\n", argv[i]);
+                    return -1;
+                }
+                return 0;
             }else
                 usage();
             return -1;
@@ -772,42 +757,14 @@ int main(int argc, char* argv[])
         
         if(!strcmp(argv[0], "dump-arm32"))
         {
-            argc -= 1;
-            argv += 1;
-            if(argc >= 2)
+            if(argc == 4)
             {
-                if(ctx.is_maskrom())
-                {
-                    bool rc4 = false;
-                    uint32_t uart = 0x0;
-                    uint32_t addr = 0x0;
-                    uint32_t len  = 0x0;
-                    for(int i = 0, idx = 0; i < argc; i++)
-                    {
-                        if(!strcmp(argv[i], "--rc4") && (argc > i + 1))
-                        {
-                            rc4 = true;
-                        }else if(!strcmp(argv[i], "--uart") && (argc > i + 1))
-                        {
-                            uart = strtoul(argv[i + 1], NULL, 0);
-                            i++;
-                        }else if(*argv[i] == '-')
-                        {
-                            usage();
-                        }else if(*argv[i] != '-' && strcmp(argv[i], "-") != 0)
-                        {
-                            if(idx == 0)
-                                addr = strtoul(argv[i], NULL, 0);
-                            else if(idx == 1)
-                                len = strtoul(argv[i], NULL, 0);
-                            idx++;
-                        }
-                    }
-                    if(ctx.maskrom_dump_arm32(uart, addr, len, rc4))
-                        return 0;
-                    printf("Error\r\n");
-                }else
-                    printf("ERROR: The chip '%s' does not in maskrom mode\r\n", ctx.chip_name());
+                uint32_t uart = strtoul(argv[1], NULL, 0);
+                uint32_t addr = strtoul(argv[2], NULL, 0);
+                uint32_t len  = strtoul(argv[3], NULL, 0);
+                if(ctx.maskrom_dump_arm32(uart, addr, len))
+                    return 0;
+                printf("Error run %s\r\n", argv[0]);
             }else
                 usage();
             return -1;
@@ -815,42 +772,14 @@ int main(int argc, char* argv[])
         
         if(!strcmp(argv[0], "dump-arm64"))
         {
-            argc -= 1;
-            argv += 1;
-            if(argc >= 2)
+            if(argc == 4)
             {
-                if(ctx.is_maskrom())
-                {
-                    bool rc4 = false;
-                    uint32_t uart = 0x0;
-                    uint32_t addr = 0x0;
-                    uint32_t len  = 0x0;
-                    for(int i = 0, idx = 0; i < argc; i++)
-                    {
-                        if(!strcmp(argv[i], "--rc4") && (argc > i + 1))
-                        {
-                            rc4 = true;
-                        }else if(!strcmp(argv[i], "--uart") && (argc > i + 1))
-                        {
-                            uart = strtoul(argv[i + 1], NULL, 0);
-                            i++;
-                        }else if(*argv[i] == '-')
-                        {
-                            usage();
-                        }else if(*argv[i] != '-' && strcmp(argv[i], "-") != 0)
-                        {
-                            if(idx == 0)
-                                addr = strtoul(argv[i], NULL, 0);
-                            else if(idx == 1)
-                                len = strtoul(argv[i], NULL, 0);
-                            idx++;
-                        }
-                    }
-                    if(ctx.maskrom_dump_arm64(uart, addr, len, rc4))
-                        return 0;
-                    printf("Error\r\n");
-                }else
-                    printf("ERROR: The chip '%s' does not in maskrom mode\r\n", ctx.chip_name());
+                uint32_t uart = strtoul(argv[1], NULL, 0);
+                uint32_t addr = strtoul(argv[2], NULL, 0);
+                uint32_t len  = strtoul(argv[3], NULL, 0);
+                if(ctx.maskrom_dump_arm64(uart, addr, len))
+                    return 0;
+                printf("Error run %s\r\n", argv[0]);
             }else
                 usage();
             return -1;
@@ -858,46 +787,22 @@ int main(int argc, char* argv[])
         
         if(!strcmp(argv[0], "write-arm32"))
         {
-            argc -= 1;
-            argv += 1;
-            if(argc >= 2)
+            if(argc == 3)
             {
-                if(ctx.is_maskrom())
+                uint32_t addr  = strtoul(argv[1], NULL, 0);
+                char* filename = argv[2];
+                size_t len;
+                void* buf = file_load(filename, &len);
+                if(buf)
                 {
-                    bool rc4 = false;
-                    char* filename = NULL;
-                    uint32_t addr = 0x0;
-                    for(int i = 0, idx = 0; i < argc; i++)
+                    if(ctx.maskrom_write_arm32_progress(addr, buf, len))
                     {
-                        if(!strcmp(argv[i], "--rc4") && (argc > i + 1))
-                        {
-                            rc4 = true;
-                        }else if(*argv[i] == '-')
-                        {
-                            usage();
-                        }else if(*argv[i] != '-' && strcmp(argv[i], "-") != 0)
-                        {
-                            if(idx == 0)
-                                addr = strtoul(argv[i], NULL, 0);
-                            else if(idx == 1)
-                                filename = argv[i];
-                            idx++;
-                        }
-                    }
-                    uint64_t len;
-                    void* buf = file_load(filename, &len);
-                    if(buf)
-                    {
-                        if(ctx.maskrom_write_arm32_progress(addr, buf, len, rc4))
-                        {
-                            free(buf);
-                            return 0;
-                        }
                         free(buf);
+                        return 0;
                     }
-                    printf("Error\r\n");
-                }else
-                    printf("ERROR: The chip '%s' does not in maskrom mode\r\n", ctx.chip_name());
+                    free(buf);
+                }
+                printf("Error run %s\r\n", argv[0]);
             }else
                 usage();
             return -1;
@@ -905,46 +810,22 @@ int main(int argc, char* argv[])
         
         if(!strcmp(argv[0], "write-arm64"))
         {
-            argc -= 1;
-            argv += 1;
-            if(argc >= 2)
+            if(argc == 3)
             {
-                if(ctx.is_maskrom())
+                uint32_t addr  = strtoul(argv[1], NULL, 0);
+                char* filename = argv[2];
+                size_t len;
+                void* buf = file_load(filename, &len);
+                if(buf)
                 {
-                    bool rc4 = false;
-                    char* filename = NULL;
-                    uint32_t addr = 0x0;
-                    for(int i = 0, idx = 0; i < argc; i++)
+                    if(ctx.maskrom_write_arm64_progress(addr, buf, len))
                     {
-                        if(!strcmp(argv[i], "--rc4") && (argc > i + 1))
-                        {
-                            rc4 = true;
-                        }else if(*argv[i] == '-')
-                        {
-                            usage();
-                        }else if(*argv[i] != '-' && strcmp(argv[i], "-") != 0)
-                        {
-                            if(idx == 0)
-                                addr = strtoul(argv[i], NULL, 0);
-                            else if(idx == 1)
-                                filename = argv[i];
-                            idx++;
-                        }
-                    }
-                    uint64_t len;
-                    void* buf = file_load(filename, &len);
-                    if(buf)
-                    {
-                        if(ctx.maskrom_write_arm64_progress(addr, buf, len, rc4))
-                        {
-                            free(buf);
-                            return 0;
-                        }
                         free(buf);
+                        return 0;
                     }
-                    printf("Error\r\n");
-                }else
-                    printf("ERROR: The chip '%s' does not in maskrom mode\r\n", ctx.chip_name());
+                    free(buf);
+                }
+                printf("Error run %s\r\n", argv[0]);
             }else
                 usage();
             return -1;
@@ -952,32 +833,12 @@ int main(int argc, char* argv[])
         
         if(!strcmp(argv[0], "exec-arm32"))
         {
-            argc -= 1;
-            argv += 1;
-            if(argc >= 2)
+            if(argc == 2)
             {
-                if(ctx.is_maskrom())
-                {
-                    bool rc4 = false;
-                    uint32_t addr = 0x0;
-                    for(int i = 0; i < argc; i++)
-                    {
-                        if(!strcmp(argv[i], "--rc4") && (argc > i + 1))
-                        {
-                            rc4 = true;
-                        }else if(*argv[i] == '-')
-                        {
-                            usage();
-                        }else if(*argv[i] != '-' && strcmp(argv[i], "-") != 0)
-                        {
-                            addr = strtoul(argv[i], NULL, 0);
-                        }
-                    }
-                    if(ctx.maskrom_exec_arm32(addr, rc4))
-                        return 0;
-                    printf("Error\r\n");
-                }else
-                    printf("ERROR: The chip '%s' does not in maskrom mode\r\n", ctx.chip_name());
+                uint32_t addr = strtoul(argv[1], NULL, 0);
+                if(ctx.maskrom_exec_arm32(addr))
+                    return 0;
+                printf("Error run %s\r\n", argv[0]);
             }else
                 usage();
             return -1;
@@ -985,37 +846,18 @@ int main(int argc, char* argv[])
         
         if(!strcmp(argv[0], "exec-arm64"))
         {
-            argc -= 1;
-            argv += 1;
-            if(argc >= 2)
+            if(argc == 2)
             {
-                if(ctx.is_maskrom())
-                {
-                    bool rc4 = false;
-                    uint32_t addr = 0x0;
-                    for(int i = 0; i < argc; i++)
-                    {
-                        if(!strcmp(argv[i], "--rc4") && (argc > i + 1))
-                        {
-                            rc4 = true;
-                        }else if(*argv[i] == '-')
-                        {
-                            usage();
-                        }else if(*argv[i] != '-' && strcmp(argv[i], "-") != 0)
-                        {
-                            addr = strtoul(argv[i], NULL, 0);
-                        }
-                    }
-                    if(ctx.maskrom_exec_arm64(addr, rc4))
-                        return 0;
-                    printf("Error\r\n");
-                }else
-                    printf("ERROR: The chip '%s' does not in maskrom mode\r\n", ctx.chip_name());
+                uint32_t addr = strtoul(argv[1], NULL, 0);
+                if(ctx.maskrom_exec_arm64(addr))
+                    return 0;
+                printf("Error run %s\r\n", argv[0]);
             }else
                 usage();
-        }else
-            usage();
-    }else
-        usage();
+            return -1;
+        }
+        cmd = argv[0];
+    }
+    printf("Incorrect param '%s'\r\n", cmd);
     return -1;
 }

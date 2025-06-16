@@ -72,8 +72,8 @@ class RK_usb
     bool write_raw(uint32_t addr, void* buf, size_t len);
     bool read_raw(uint32_t addr, void* buf, size_t len);
 
-    bool maskrom_write_arm32(uint32_t addr, void* buf, size_t len, bool rc4);
-    bool maskrom_write_arm64(uint32_t addr, void* buf, size_t len, bool rc4);
+    bool maskrom_write_arm32(uint32_t addr, void* buf, size_t len);
+    bool maskrom_write_arm64(uint32_t addr, void* buf, size_t len);
 
     libusb_context* m_context;
     libusb_device_handle* m_handle;
@@ -89,26 +89,30 @@ public:
     bool init();
 
     const char* chip_name();
-    bool is_maskrom(){ return m_maskrom; };
+    bool chip_is_maskrom(){ return m_maskrom; };
+    bool chip_ready();
 
-    bool maskrom_upload_memory(uint32_t code, void* buf, uint64_t len, bool rc4);
+    bool maskrom_upload_memory(uint32_t code, void* buf, uint64_t len);
     bool maskrom_upload_file(uint32_t code, const char* filename, bool rc4);
-    bool maskrom_dump_arm32(uint32_t uart, uint32_t addr, uint32_t len, bool rc4);
-    bool maskrom_dump_arm64(uint32_t uart, uint32_t addr, uint32_t len, bool rc4);
-    bool maskrom_write_arm32_progress(uint32_t addr, void* buf, size_t len, bool rc4);
-    bool maskrom_write_arm64_progress(uint32_t addr, void* buf, size_t len, bool rc4);
-    bool maskrom_exec_arm32(uint32_t addr, bool rc4);
-    bool maskrom_exec_arm64(uint32_t addr, bool rc4);
-    bool ready();
-    bool version(uint8_t* buf);
+    bool maskrom_dump_arm32(uint32_t uart, uint32_t addr, uint32_t len);
+    bool maskrom_dump_arm64(uint32_t uart, uint32_t addr, uint32_t len);
+    bool maskrom_write_arm32_progress(uint32_t addr, void* buf, size_t len);
+    bool maskrom_write_arm64_progress(uint32_t addr, void* buf, size_t len);
+    bool maskrom_exec_arm32(uint32_t addr);
+    bool maskrom_exec_arm64(uint32_t addr);
+
+    bool version(uint8_t* buf_16);
     bool capability(uint8_t* buf);
     bool capability_support(enum capability_type_t type);
     bool reset(bool maskrom);
     bool exec (uint32_t addr, uint32_t dtb);
+
+
     bool read (uint32_t addr, void* buf, size_t len);
     bool write(uint32_t addr, void* buf, size_t len);
     bool read_progress(uint32_t addr, void* buf, size_t len);
     bool write_progress(uint32_t addr, void* buf, size_t len);
+
     bool otp_read(uint8_t* buf, size_t len);
     bool sn_read(char* sn);
     bool sn_write(char* sn);
@@ -116,6 +120,7 @@ public:
     bool vs_write(uint16_t type, uint16_t index, uint8_t* buf, size_t len);
     enum storage_type_t storage_read();
     bool storage_switch(enum storage_type_t type);
+
     bool flash_detect(flash_info_t* info);
     bool flash_erase_lba(uint32_t sec, uint32_t cnt);
     bool flash_read_lba(uint32_t sec, uint32_t cnt, void* buf);

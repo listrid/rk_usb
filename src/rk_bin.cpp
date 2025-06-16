@@ -98,9 +98,7 @@ static inline uint32_t get_unaligned_le32(const void* p)
 
 static inline uint32_t __swab32(uint32_t x)
 {
-    return ((x << 24) | (x >> 24) | \
-            ((x & (uint32_t)0x0000ff00UL)<<8) | \
-            ((x & (uint32_t)0x00ff0000UL)>>8));
+    return ((x << 24) | (x >> 24) | ((x & (uint32_t)0x0000ff00UL)<<8) | ((x & (uint32_t)0x00ff0000UL)>>8));
 }
 
 
@@ -126,69 +124,59 @@ static inline uint32_t loader_align_size(uint32_t len)
 }
 
 
-static void idb_rc4(const void* buf, size_t len)
-{
-    rc4_ctx rc4;
-    uint8_t key[16] = { 124, 78, 3, 4, 85, 5, 9, 7, 45, 44, 123, 56, 23, 13, 23, 17 };
-
-    rc4.setkey(key, sizeof(key));
-    rc4.crypt((uint8_t*)buf, len);
-}
-
-
 void RK_bin::mkidb()
 {
     if(m_is_newidb)
     {
-        m_idblen = 0;
-        for(uint32_t i = 0; i < m_nentry; i++)
+        m_flash_len = 0;
+        for(uint32_t i = 0; i < m_count_entry; i++)
         {
-            rk_bin_entry_t* e = m_entry[i];
-            if(e->type == RKLOADER_ENTRY_LOADER)
-                m_idblen += loader_align_size(get_unaligned_le32(&e->data_size));
+            RK_Boot_Entry_t* e = m_entry[i];
+            if(e->m_type == RK_Boot_Entry_Type_t::RKLOADER_ENTRY_LOADER)
+                m_flash_len += loader_align_size(get_unaligned_le32(&e->m_size));
         }
-        if(m_idblen > 0)
+        if(m_flash_len > 0)
         {
-            m_idbbuf = calloc(1, m_idblen);
-            if(m_idbbuf)
+            m_flash_data = calloc(1, m_flash_len);
+            if(m_flash_data)
             {
                 uint32_t flash_head_index = 0;
                 uint32_t idblen = 0;
 
-                for(flash_head_index = 0; flash_head_index < m_nentry; flash_head_index++)
+                for(flash_head_index = 0; flash_head_index < m_count_entry; flash_head_index++)
                 {
-                    rk_bin_entry_t* e = m_entry[flash_head_index];
-                    if(e->type == RKLOADER_ENTRY_LOADER)
+                    RK_Boot_Entry_t* e = m_entry[flash_head_index];
+                    if(e->m_type == RK_Boot_Entry_Type_t::RKLOADER_ENTRY_LOADER)
                     {
-                        char str[256];
-                        wide2str(str, (uint8_t*)&e->name[0], sizeof(e->name));
-                        if(strcmp(str, "FlashHead") == 0)
+                        char name[32];
+                        e->GetName(name);
+                        if(strcmp(name, "FlashHead") == 0)
                         {
-                            uint32_t len = loader_align_size(get_unaligned_le32(&e->data_size));
-                            memset((char*)m_idbbuf + idblen, 0, len);
-                            memcpy((char*)m_idbbuf + idblen, (char*)m_buffer + get_unaligned_le32(&e->data_offset), get_unaligned_le32(&e->data_size));
-                            if(!m_is_rc4on)
+                            uint32_t len = loader_align_size(get_unaligned_le32(&e->m_size));
+                            memset((char*)m_flash_data + idblen, 0, len);
+                            memcpy((char*)m_flash_data + idblen, (char*)m_buffer + get_unaligned_le32(&e->m_offset), get_unaligned_le32(&e->m_size));
+                            if(m_header->m_rc4_flag)
                             {
                                 for(size_t i = 0; i < (len / 512); i++)
-                                    idb_rc4((char*)m_idbbuf + idblen + 512 * i, 512);
+                                    rk_rc4((char*)m_flash_data + idblen + 512 * i, 512);
                             }
                             idblen += len;
                             break;
                         }
                     }
                 }
-                for(uint32_t idx = 0; idx < m_nentry; idx++)
+                for(uint32_t idx = 0; idx < m_count_entry; idx++)
                 {
-                    rk_bin_entry_t* e = m_entry[idx];
-                    if((e->type == RKLOADER_ENTRY_LOADER) && (idx != flash_head_index))
+                    RK_Boot_Entry_t* e = m_entry[idx];
+                    if((e->m_type == RK_Boot_Entry_Type_t::RKLOADER_ENTRY_LOADER) && (idx != flash_head_index))
                     {
-                        uint32_t len = loader_align_size(get_unaligned_le32(&e->data_size));
-                        memset((char*)m_idbbuf + idblen, 0, len);
-                        memcpy((char*)m_idbbuf + idblen, (char*)m_buffer + get_unaligned_le32(&e->data_offset), get_unaligned_le32(&e->data_size));
-                        if(!m_is_rc4on)
+                        uint32_t len = loader_align_size(get_unaligned_le32(&e->m_size));
+                        memset((char*)m_flash_data + idblen, 0, len);
+                        memcpy((char*)m_flash_data + idblen, (char*)m_buffer + get_unaligned_le32(&e->m_offset), get_unaligned_le32(&e->m_size));
+                        if(m_header->m_rc4_flag)
                         {
                             for(size_t i = 0; i < (len / 512); i++)
-                                idb_rc4((char*)m_idbbuf + idblen + 512 * i, 512);
+                                rk_rc4((char*)m_flash_data + idblen + 512 * i, 512);
                         }
                         idblen += len;
                     }
@@ -196,36 +184,36 @@ void RK_bin::mkidb()
             }
         }
     }else{
-        m_idblen = 0;
-        for(uint32_t i = 0; i < m_nentry; i++)
+        m_flash_len = 0;
+        for(uint32_t i = 0; i < m_count_entry; i++)
         {
-            rk_bin_entry_t* e = m_entry[i];
-            if(e->type == RKLOADER_ENTRY_LOADER)
+            RK_Boot_Entry_t* e = m_entry[i];
+            if(e->m_type == RK_Boot_Entry_Type_t::RKLOADER_ENTRY_LOADER)
             {
-                char str[256];
-                wide2str(str, (uint8_t*)&e->name[0], sizeof(e->name));
+                char str[64];
+                e->GetName(str);
                 if((strcmp(str, "FlashBoot") == 0) || (strcmp(str, "FlashData") == 0))
-                    m_idblen += loader_align_size(get_unaligned_le32(&e->data_size));
+                    m_flash_len += loader_align_size(get_unaligned_le32(&e->m_size));
             }
         }
-        if(m_idblen > 0)
+        if(m_flash_len > 0)
         {
-            m_idblen += sizeof(idblock0_t) + sizeof(idblock1_t) + sizeof(idblock2_t) + sizeof(idblock3_t);
-            m_idbbuf = calloc(1, m_idblen);
-            if(m_idbbuf)
+            m_flash_len += sizeof(idblock0_t) + sizeof(idblock1_t) + sizeof(idblock2_t) + sizeof(idblock3_t);
+            m_flash_data = calloc(1, m_flash_len);
+            if(m_flash_data)
             {
-                rk_bin_entry_t* flash_data = NULL;
-                rk_bin_entry_t* flash_boot = NULL;
+                RK_Boot_Entry_t* flash_data = NULL;
+                RK_Boot_Entry_t* flash_boot = NULL;
                 uint32_t idblen = 0;
                 uint32_t len;
 
-                for(uint32_t i = 0; i < m_nentry; i++)
+                for(uint32_t i = 0; i < m_count_entry; i++)
                 {
-                    rk_bin_entry_t* e = m_entry[i];
-                    if(e->type == RKLOADER_ENTRY_LOADER)
+                    RK_Boot_Entry_t* e = m_entry[i];
+                    if(e->m_type == RK_Boot_Entry_Type_t::RKLOADER_ENTRY_LOADER)
                     {
-                        char str[256];
-                        wide2str(str, (uint8_t*)&e->name[0], sizeof(e->name));
+                        char str[64];
+                        e->GetName(str);
                         if(strcmp(str, "FlashData") == 0)
                             flash_data = e;
                         else if(strcmp(str, "FlashBoot") == 0)
@@ -233,72 +221,60 @@ void RK_bin::mkidb()
                     }
                 }
 
-                idblock0_t* idb0 = (idblock0_t*)((char*)m_idbbuf + idblen);
+                idblock0_t* idb0 = (idblock0_t*)((char*)m_flash_data + idblen);
                 idb0->signature = 0x0ff0aa55;
-                idb0->disable_rc4 = m_is_rc4on ? 0 : 1;
+                idb0->disable_rc4 = m_header->m_rc4_flag;
                 idb0->bootcode1_offset = 4;
                 idb0->bootcode2_offset = 4;
-                idb0->flash_data_size = loader_align_size(get_unaligned_le32(&flash_data->data_size)) / 512;
-                idb0->flash_boot_size = loader_align_size(get_unaligned_le32(&flash_data->data_size)) / 512 + loader_align_size(get_unaligned_le32(&flash_boot->data_size)) / 512;
+                idb0->flash_data_size = loader_align_size(get_unaligned_le32(&flash_data->m_size)) / 512;
+                idb0->flash_boot_size = loader_align_size(get_unaligned_le32(&flash_data->m_size)) / 512 + loader_align_size(get_unaligned_le32(&flash_boot->m_size)) / 512;
                 idblen += 512;
 
-                idblock1_t* idb1 = (idblock1_t*)((char*)m_idbbuf + idblen);
+                idblock1_t* idb1 = (idblock1_t*)((char*)m_flash_data + idblen);
                 idb1->sys_reserved_block = 0xc;
                 idb1->disk0_size = 0xffff;
-                idb1->chip_tag = 0x38324b52;
+                idb1->chip_tag = 0x38324b52;// 'RK28'
                 idblen += 512;
 
-                idblock2_t* idb2 = (idblock2_t*)((char*)m_idbbuf + idblen);
+                idblock2_t* idb2 = (idblock2_t*)((char*)m_flash_data + idblen);
                 strcpy((char*)idb2->sz_vc_tag, "VC");
                 strcpy((char*)idb2->sz_crc_tag, "CRC");
                 idblen += 512;
 
-                idblock3_t* idb3 = (idblock3_t*)((char*)m_idbbuf + idblen);
+                idblock3_t* idb3 = (idblock3_t*)((char*)m_flash_data + idblen);
                 memset(idb3, 0, sizeof(idblock3_t));
                 idblen += 512;
 
-                len = loader_align_size(get_unaligned_le32(&flash_data->data_size));
-                memset((char*)m_idbbuf + idblen, 0, len);
-                memcpy((char*)m_idbbuf + idblen, (char*)m_buffer + get_unaligned_le32(&flash_data->data_offset), get_unaligned_le32(&flash_data->data_size));
+                len = loader_align_size(get_unaligned_le32(&flash_data->m_size));
+                memset((char*)m_flash_data + idblen, 0, len);
+                memcpy((char*)m_flash_data + idblen, (char*)m_buffer + get_unaligned_le32(&flash_data->m_offset), get_unaligned_le32(&flash_data->m_size));
                 if(idb0->disable_rc4)
                 {
                     for(size_t i = 0; i < (len / 512); i++)
-                        idb_rc4((char*)m_idbbuf + idblen + 512 * i, 512);
+                        rk_rc4((char*)m_flash_data + idblen + 512 * i, 512);
                 }
                 idblen += len;
 
-                len = loader_align_size(get_unaligned_le32(&flash_boot->data_size));
-                memset((char*)m_idbbuf + idblen, 0, len);
-                memcpy((char*)m_idbbuf + idblen, (char*)m_buffer + get_unaligned_le32(&flash_boot->data_offset), get_unaligned_le32(&flash_boot->data_size));
+                len = loader_align_size(get_unaligned_le32(&flash_boot->m_size));
+                memset((char*)m_flash_data + idblen, 0, len);
+                memcpy((char*)m_flash_data + idblen, (char*)m_buffer + get_unaligned_le32(&flash_boot->m_offset), get_unaligned_le32(&flash_boot->m_size));
                 if(idb0->disable_rc4)
                 {
                     for(size_t i = 0; i < (len / 512); i++)
-                        idb_rc4((char*)m_idbbuf + idblen + 512 * i, 512);
+                        rk_rc4((char*)m_flash_data + idblen + 512 * i, 512);
                 }
                 idblen += len;
 
-                idb2->sec0_crc = crc16_sum(0xffff, (uint8_t*)idb0, 512);
-                idb2->sec1_crc = crc16_sum(0xffff, (uint8_t*)idb1, 512);
-                idb2->sec3_crc = crc16_sum(0xffff, (uint8_t*)idb3, 512);
+                idb2->sec0_crc = rk_crc16(0xffff, (uint8_t*)idb0, 512);
+                idb2->sec1_crc = rk_crc16(0xffff, (uint8_t*)idb1, 512);
+                idb2->sec3_crc = rk_crc16(0xffff, (uint8_t*)idb3, 512);
 
-                idb_rc4(idb0, sizeof(idblock0_t));
-                idb_rc4(idb2, sizeof(idblock2_t));
-                idb_rc4(idb3, sizeof(idblock3_t));
+                rk_rc4(idb0, sizeof(idblock0_t));
+                rk_rc4(idb2, sizeof(idblock2_t));
+                rk_rc4(idb3, sizeof(idblock3_t));
             }
         }
     }
-}
-
-
-char* wide2str(char* str, uint8_t* wide, size_t len)
-{
-    for(size_t i = 0; i < len; i++)
-    {
-        char c = wide[i * 2 + 0] & 0xff;
-        str[i] = (c && isprint(c)) ? c : '\0';
-    }
-    str[len] = '\0';
-    return str;
 }
 
 
@@ -307,54 +283,51 @@ bool RK_bin::load(const char* filename)
     if(m_buffer)
         free(m_buffer);
     m_buffer = file_load(filename, &m_length);
-    if(!m_buffer || m_length <= sizeof(rk_bin_header_t))
+    if(!m_buffer || m_length <= sizeof(RK_Boot_Header_t))
     {
         free(m_buffer);
         m_buffer =NULL;
         return false;
     }
-    m_header = (rk_bin_header_t*)m_buffer;
+    m_header = (RK_Boot_Header_t*)m_buffer;
     
-    if((le32_to_cpu(m_header->tag) != 0x544f4f42) && (le32_to_cpu(m_header->tag) != 0x2052444c))// 'BOOT' && 'LDR '
+    if((le32_to_cpu(m_header->m_magic) != 0x544f4f42) && (le32_to_cpu(m_header->m_magic) != 0x2052444c))// 'BOOT' && 'LDR '
     {
         free(m_buffer);
         m_buffer =NULL;
         return false;
     }
 
-    m_is_newidb = (le32_to_cpu(m_header->tag) == 0x2052444c); //'LDR '
+    m_is_newidb = (le32_to_cpu(m_header->m_magic) == 0x2052444c); //'LDR '
 
-    if(m_header->rc4_flag)
-        m_is_rc4on = 0;
-    else
-        m_is_rc4on = 1;
+    m_is_sign = (m_header->m_sign_flag == 'S');
 
-    m_is_sign = (m_header->sign_flag == 'S');
+    m_count_entry = 0;
+    for(size_t i = 0; i < m_header->m_code471_num; i++)
+        m_entry[m_count_entry++] = (RK_Boot_Entry_t*)((uint8_t*)m_buffer + m_header->m_code471_offset + sizeof(RK_Boot_Entry_t) * i);
 
-    m_nentry = m_header->code471_num + m_header->code472_num + m_header->loader_num;
-    if(m_nentry <= 0)
+    for(size_t i = 0; i < m_header->m_code472_num; i++)
+        m_entry[m_count_entry++] = (RK_Boot_Entry_t*)((uint8_t*)m_buffer + m_header->m_code472_offset + sizeof(RK_Boot_Entry_t) * i);
+
+    for(size_t i = 0; i < m_header->m_loader_num; i++)
+        m_entry[m_count_entry++] = (RK_Boot_Entry_t*)((uint8_t*)m_buffer + m_header->m_loader_offset + sizeof(RK_Boot_Entry_t) * i);
+
+    if(m_count_entry == 0)
     {
         free(m_buffer);
         m_buffer = NULL;
         return NULL;
     }
 
-    for(size_t i = 0; i < m_nentry; i++)
-    {
-        m_entry[i] = (rk_bin_entry_t*)( (uint8_t*)m_buffer + sizeof(rk_bin_header_t) + sizeof(rk_bin_entry_t) * i);
-    }
-
-    rk_bin_entry_t* e = m_entry[m_nentry - 1];
-    uint32_t len = get_unaligned_le32(&e->data_offset) + get_unaligned_le32(&e->data_size);
-    if(m_length != len + 4)
+    RK_Boot_Entry_t* e = m_entry[m_count_entry - 1];
+    uint32_t len = get_unaligned_le32(&e->m_offset) + get_unaligned_le32(&e->m_size);
+    if(m_length < len + 4)
     {
         free(m_buffer);
         m_buffer = NULL;
         return NULL;
     }
-
-    uint32_t crc32 = 0x0;
-    if(crc32_sum(crc32, (uint8_t*)m_buffer, len) != get_unaligned_le32((char*)m_buffer + len))
+    if(rk_crc32(0, (uint8_t*)m_buffer, len) != get_unaligned_le32((char*)m_buffer + len))
     {
         free(m_buffer);
         m_buffer = NULL;
@@ -369,7 +342,7 @@ bool RK_bin::load(const char* filename)
 RK_bin::RK_bin()
 {
     m_buffer = NULL;
-    m_idbbuf = NULL;
+    m_flash_data = NULL;
     m_length = 0;
     m_header = NULL;
     memset(m_entry, 0, sizeof(m_entry));
@@ -379,6 +352,6 @@ RK_bin::RK_bin()
 RK_bin::~RK_bin()
 {
     free(m_buffer);
-    free(m_idbbuf);
+    free(m_flash_data);
 }
 
