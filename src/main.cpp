@@ -19,7 +19,7 @@ static const char* manufacturer[] =
 };
 
 
-//#define disable_XZ
+//#define disable_SDRAM
 
 static void usage(void)
 {
@@ -33,7 +33,7 @@ static void usage(void)
     printf("    rk_usb version                                - Show chip version\r\n");
     printf("    rk_usb capability                             - Show capability information\r\n");
     printf("    rk_usb reset [maskrom]                        - Reset chip to normal or maskrom mode\n");
-#if !defined(disable_XZ)
+#if !defined(disable_SDRAM)
     printf("    rk_usb dump <address> <length>                - Dump memory region in hex format\r\n");
     printf("    rk_usb read <address> <length> <file>         - Read memory to file\r\n");
     printf("    rk_usb write <address> <file>                 - Write file to memory\r\n");
@@ -48,8 +48,8 @@ static void usage(void)
     printf("    rk_usb storage                                - Read storage media list\r\n");
     printf("    rk_usb storage <index>                        - Switch storage media and show list\r\n");
     printf("    rk_usb flash                                  - Detect flash and show information\r\n");
-    printf("    rk_usb flash erase <sector> <count>           - Erase flash sector \r\n");
-    printf("    rk_usb flash read  <sector> <count> <file>    - Read flash sector to file\r\n");
+    printf("    rk_usb flash erase <sector> <count_sector>    - Erase flash sector \r\n");
+    printf("    rk_usb flash read <sector> <count_sec> <file> - Read flash sector to file\r\n");
     printf("    rk_usb flash write <sector> <file>            - Write file to flash sector\r\n");
 
     printf("extra:\r\n");
@@ -317,7 +317,7 @@ int main(int argc, char* argv[])
         }
         return -1;
     }
-#if !defined(disable_XZ)
+#if !defined(disable_SDRAM)
     if(!strcmp(cmd, "dump"))
     {
         if(argc == 2)

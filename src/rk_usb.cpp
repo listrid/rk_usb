@@ -901,7 +901,7 @@ bool RK_usb::read(uint32_t addr, void* buf, size_t len)
 {
     while(len > 0)
     {
-        uint32_t n = len > 16384 ? 16384 : uint32_t(len);
+        uint32_t n = len > 128 ? 128 : uint32_t(len);
         if(!read_raw(addr, buf, n))
             return false;
         addr += n;
@@ -915,7 +915,7 @@ bool RK_usb::write(uint32_t addr, void* buf, size_t len)
 {
     while(len > 0)
     {
-        uint32_t n = len > 16384 ? 16384 : uint32_t(len);
+        uint32_t n = len > 128 ? 128 : uint32_t(len);
         if(!write_raw(addr, buf, n))
             return false;
         addr += n;
@@ -930,7 +930,7 @@ bool RK_usb::read_progress(uint32_t addr, void* buf, size_t len)
     progress_t progress(len);
     while(len > 0)
     {
-        uint32_t n = len > 16384 ? 16384 : uint32_t(len);
+        uint32_t n = len > 128 ? 128 : uint32_t(len);
         if(!read_raw(addr, buf, n))
             return false;
         addr += n;
@@ -947,7 +947,7 @@ bool RK_usb::write_progress(uint32_t addr, void* buf, size_t len)
     progress_t progress(len);
     while(len > 0)
     {
-        uint32_t n = len > 16384 ? 16384 : uint32_t(len);
+        uint32_t n = len > 128 ? 128 : uint32_t(len);
         if(!write_raw(addr, buf, n))
             return false;
         addr += n;
@@ -1192,7 +1192,7 @@ bool RK_usb::flash_detect(flash_info_t* info)
     return true;
 }
 
-bool RK_usb::flash_erase_lba_raw(uint32_t sec, uint32_t cnt)
+bool RK_usb::flash_erase_lba_raw(uint32_t start_sec, uint32_t cnt_sec)
 {
     usb_request_t req;
     usb_response_t res;
@@ -1204,8 +1204,8 @@ bool RK_usb::flash_erase_lba_raw(uint32_t sec, uint32_t cnt)
     req.flag = USB_DIRECTION_OUT;
     req.cmdlen = 10;
     req.cmd.opcode = OPCODE_ERASE_LBA;
-    put_unaligned_be32(&req.cmd.address[0], sec);
-    put_unaligned_be16(&req.cmd.size[0], (uint16_t)cnt);
+    put_unaligned_be32(&req.cmd.address[0], start_sec);
+    put_unaligned_be16(&req.cmd.size[0], (uint16_t)cnt_sec);
 
     if(!usb_bulk_send(&req, sizeof(usb_request_t)))
         return false;
@@ -1217,7 +1217,7 @@ bool RK_usb::flash_erase_lba_raw(uint32_t sec, uint32_t cnt)
 }
 
 
-bool RK_usb::flash_read_lba_raw(uint32_t sec, uint32_t cnt, void* buf)
+bool RK_usb::flash_read_lba_raw(uint32_t start_sec, uint32_t cnt_sec, void* buf)
 {
     usb_request_t req;
     usb_response_t res;
@@ -1225,17 +1225,17 @@ bool RK_usb::flash_read_lba_raw(uint32_t sec, uint32_t cnt, void* buf)
     memset(&req, 0, sizeof(usb_request_t));
     put_unaligned_be32(&req.signature[0], USB_REQUEST_SIGN);
     put_unaligned_be32(&req.tag[0], make_tag());
-    put_unaligned_le32(&req.length[0], cnt << 9);
+    put_unaligned_le32(&req.length[0], cnt_sec << 9);
     req.flag = USB_DIRECTION_IN;
     req.cmdlen = 10;
     req.cmd.opcode = OPCODE_READ_LBA;
     req.cmd.subcode = 0;
-    put_unaligned_be32(&req.cmd.address[0], sec);
-    put_unaligned_be16(&req.cmd.size[0], (uint16_t)cnt);
+    put_unaligned_be32(&req.cmd.address[0], start_sec);
+    put_unaligned_be16(&req.cmd.size[0], (uint16_t)cnt_sec);
 
     if(!usb_bulk_send(&req, sizeof(usb_request_t)))
         return false;
-    if(!usb_bulk_recv(buf, cnt << 9))
+    if(!usb_bulk_recv(buf, cnt_sec << 9))
         return false;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
@@ -1244,7 +1244,7 @@ bool RK_usb::flash_read_lba_raw(uint32_t sec, uint32_t cnt, void* buf)
     return true;
 }
 
-bool RK_usb::flash_write_lba_raw(uint32_t sec, uint32_t cnt, void* buf)
+bool RK_usb::flash_write_lba_raw(uint32_t start_sec, uint32_t cnt_sec, void* buf)
 {
     usb_request_t req;
     usb_response_t res;
@@ -1252,17 +1252,17 @@ bool RK_usb::flash_write_lba_raw(uint32_t sec, uint32_t cnt, void* buf)
     memset(&req, 0, sizeof(usb_request_t));
     put_unaligned_be32(&req.signature[0], USB_REQUEST_SIGN);
     put_unaligned_be32(&req.tag[0], make_tag());
-    put_unaligned_le32(&req.length[0], cnt << 9);
+    put_unaligned_le32(&req.length[0], cnt_sec << 9);
     req.flag = USB_DIRECTION_OUT;
     req.cmdlen = 10;
     req.cmd.opcode = OPCODE_WRITE_LBA;
     req.cmd.subcode = 0;
-    put_unaligned_be32(&req.cmd.address[0], sec);
-    put_unaligned_be16(&req.cmd.size[0], (uint16_t)cnt);
+    put_unaligned_be32(&req.cmd.address[0], start_sec);
+    put_unaligned_be16(&req.cmd.size[0], (uint16_t)cnt_sec);
 
     if(!usb_bulk_send(&req, sizeof(usb_request_t)))
         return false;
-    if(!usb_bulk_send(buf, cnt << 9))
+    if(!usb_bulk_send(buf, cnt_sec << 9))
         return false;
     if(!usb_bulk_recv(&res, sizeof(usb_response_t)))
         return false;
@@ -1271,119 +1271,112 @@ bool RK_usb::flash_write_lba_raw(uint32_t sec, uint32_t cnt, void* buf)
     return true;
 }
 
-bool RK_usb::flash_erase_lba(uint32_t sec, uint32_t cnt)
+bool RK_usb::flash_erase_lba(uint32_t start_sec, uint32_t cnt_sec)
 {
-    while(cnt > 0)
+    while(cnt_sec > 0)
     {
-        uint32_t n = cnt > 16384 ? 16384 : cnt;
-        if(!flash_erase_lba_raw(sec, n))
+        uint32_t n = cnt_sec > 128 ? 128 : cnt_sec;
+        if(!flash_erase_lba_raw(start_sec, n))
             return false;
-        sec += n;
-        cnt -= n;
+        start_sec += n;
+        cnt_sec -= n;
     }
     return true;
 }
 
-bool RK_usb::flash_read_lba(uint32_t sec, uint32_t cnt, void* buf)
+bool RK_usb::flash_read_lba(uint32_t start_sec, uint32_t cnt_sec, void* buf)
 {
-    while(cnt > 0)
+    while(cnt_sec > 0)
     {
-        uint32_t n = cnt > 16384 ? 16384 : cnt;
-        if(!flash_read_lba_raw(sec, n, buf))
+        uint32_t n = cnt_sec > 128 ? 128 : cnt_sec;
+        if(!flash_read_lba_raw(start_sec, n, buf))
             return false;
-        sec += n;
+        start_sec += n;
         buf = (uint8_t*)buf + (n << 9);
-        cnt -= n;
+        cnt_sec -= n;
     }
     return true;
 }
 
-bool RK_usb::flash_write_lba(uint32_t sec, uint32_t cnt, void* buf)
+bool RK_usb::flash_write_lba(uint32_t start_sec, uint32_t cnt_sec, void* buf)
 {
-    while(cnt > 0)
+    while(cnt_sec > 0)
     {
-        uint32_t n = cnt > 16384 ? 16384 : cnt;
-        if(!flash_write_lba_raw(sec, n, buf))
+        uint32_t n = cnt_sec > 128 ? 128 : cnt_sec;
+        if(!flash_write_lba_raw(start_sec, n, buf))
             return false;
-        sec += n;
+        start_sec += n;
         buf = (uint8_t*)buf + (n << 9);
-        cnt -= n;
+        cnt_sec -= n;
     }
     return true;
 }
 
-bool RK_usb::flash_erase_lba_progress(uint32_t sec, uint32_t cnt)
+bool RK_usb::flash_erase_lba_progress(uint32_t start_sec, uint32_t cnt_sec)
 {
-    uint32_t MAXSEC = 16384;
-    if(cnt <= 65536)
-        MAXSEC = 128;
+    const uint32_t MAXSEC = 128;
+    uint8_t buf[512*128];
+    memset(buf, 0xFF, sizeof(buf));
 
-    progress_t progress((uint64_t)cnt << 9);
-    while(cnt > 0)
+    progress_t progress((uint64_t)cnt_sec << 9);
+    while(cnt_sec > 0)
     {
-        uint32_t n = cnt > MAXSEC ? MAXSEC : cnt;
-        if(!flash_erase_lba_raw(sec, n))
+        uint32_t n = cnt_sec > MAXSEC ? MAXSEC : cnt_sec;
+        if(!flash_write_lba_raw(start_sec, n, buf))
             return false;
-        sec += n;
-        cnt -= n;
+        start_sec += n;
+        cnt_sec -= n;
         progress.update((uint64_t)n << 9);
     }
     progress.stop();
     return true;
 }
 
-bool RK_usb::flash_read_lba_progress(uint32_t sec, uint32_t cnt, void* buf)
+bool RK_usb::flash_read_lba_progress(uint32_t start_sec, uint32_t cnt_sec, void* buf)
 {
-    uint32_t MAXSEC = 16384;
-    if(cnt <= 65536)
-        MAXSEC = 128;
+    const uint32_t MAXSEC = 128;
 
-    progress_t progress((uint64_t)cnt << 9);
-    while(cnt > 0)
+    progress_t progress((uint64_t)cnt_sec << 9);
+    while(cnt_sec > 0)
     {
-        uint32_t n = cnt > MAXSEC ? MAXSEC : cnt;
-        if(!flash_read_lba_raw(sec, n, buf))
+        uint32_t n = cnt_sec > MAXSEC ? MAXSEC : cnt_sec;
+        if(!flash_read_lba_raw(start_sec, n, buf))
             return false;
-        sec += n;
+        start_sec += n;
         buf = (uint8_t*)buf + (n << 9);
-        cnt -= n;
+        cnt_sec -= n;
         progress.update((uint64_t)n << 9);
     }
     progress.stop();
     return true;
 }
 
-bool RK_usb::flash_write_lba_progress(uint32_t sec, uint32_t cnt, void* buf)
+bool RK_usb::flash_write_lba_progress(uint32_t start_sec, uint32_t cnt_sec, void* buf)
 {
-    uint32_t MAXSEC = 16384;
-    progress_t progress((uint64_t)cnt << 9);
+    const uint32_t MAXSEC = 128;
+    progress_t progress((uint64_t)cnt_sec << 9);
 
-    if(cnt <= 65536)
-        MAXSEC = 128;
-    while(cnt > 0)
+    while(cnt_sec > 0)
     {
-        uint32_t n = cnt > MAXSEC ? MAXSEC : cnt;
-        if(!flash_write_lba_raw(sec, n, buf))
-            return 0;
-        sec += n;
+        uint32_t n = cnt_sec > MAXSEC ? MAXSEC : cnt_sec;
+        if(!flash_write_lba_raw(start_sec, n, buf))
+            return false;
+        start_sec += n;
         buf = (uint8_t*)buf + (n << 9);
-        cnt -= n;
+        cnt_sec -= n;
         progress.update((uint64_t)n << 9);
     }
     progress.stop();
     return true;
 }
 
-bool RK_usb::flash_read_lba_to_file_progress(uint32_t sec, uint32_t cnt, const char* filename)
+bool RK_usb::flash_read_lba_to_file_progress(uint32_t start_sec, uint32_t cnt_sec, const char* filename)
 {
-    uint32_t MAXSEC = 16384;
+    const uint32_t MAXSEC = 128;
 
     FILE* f = fopen(filename, "wb");
     if(!f)
         return false;
-
-    if(cnt <= 65536)
-        MAXSEC = 128;
 
     void* buf = malloc(MAXSEC << 9);
     if(!buf)
@@ -1392,12 +1385,12 @@ bool RK_usb::flash_read_lba_to_file_progress(uint32_t sec, uint32_t cnt, const c
         return false;
     }
 
-    progress_t progress((uint64_t)cnt << 9);
-    while(cnt > 0)
+    progress_t progress((uint64_t)cnt_sec << 9);
+    while(cnt_sec > 0)
     {
-        uint32_t n = cnt > MAXSEC ? MAXSEC : cnt;
+        uint32_t n = cnt_sec > MAXSEC ? MAXSEC : cnt_sec;
         memset(buf, 0, MAXSEC << 9);
-        if(!flash_read_lba_raw(sec, n, buf))
+        if(!flash_read_lba_raw(start_sec, n, buf))
         {
             free(buf);
             fclose(f);
@@ -1409,8 +1402,8 @@ bool RK_usb::flash_read_lba_to_file_progress(uint32_t sec, uint32_t cnt, const c
             fclose(f);
             return false;
         }
-        sec += n;
-        cnt -= n;
+        start_sec += n;
+        cnt_sec -= n;
         progress.update((uint64_t)n << 9);
     }
     progress.stop();
@@ -1420,9 +1413,9 @@ bool RK_usb::flash_read_lba_to_file_progress(uint32_t sec, uint32_t cnt, const c
     return true;
 }
 
-bool RK_usb::flash_write_lba_from_file_progress(uint32_t sec, uint32_t maxcnt, const char* filename)
+bool RK_usb::flash_write_lba_from_file_progress(uint32_t start_sec, uint32_t max_sec, const char* filename)
 {
-    uint32_t MAXSEC = 16384;
+    const uint32_t MAXSEC = 128;
 
     FILE* f = fopen(filename, "rb");
     if(!f)
@@ -1441,12 +1434,9 @@ bool RK_usb::flash_write_lba_from_file_progress(uint32_t sec, uint32_t maxcnt, c
     if(len % 512 != 0)
         cnt += 1;
     if(cnt <= 0)
-        cnt = maxcnt - sec;
-    else if(cnt > maxcnt - sec)
-        cnt = maxcnt - sec;
-
-    if(cnt <= 65536)
-        MAXSEC = 128;
+        cnt = max_sec - start_sec;
+    else if(cnt > max_sec - start_sec)
+        cnt = max_sec - start_sec;
 
     void* buf = malloc(MAXSEC << 9);
     if(!buf)
@@ -1471,13 +1461,13 @@ bool RK_usb::flash_write_lba_from_file_progress(uint32_t sec, uint32_t maxcnt, c
             }
         }
         len -= r_n;
-        if(!flash_write_lba_raw(sec, n, buf))
+        if(!flash_write_lba_raw(start_sec, n, buf))
         {
             free(buf);
             fclose(f);
             return false;
         }
-        sec += n;
+        start_sec += n;
         cnt -= n;
         progress.update((uint64_t)n << 9);
     }

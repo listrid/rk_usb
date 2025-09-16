@@ -65,9 +65,9 @@ class RK_usb
     bool usb_bulk_send(void* buf, size_t len);
     bool usb_bulk_recv(void* buf, size_t len);
 
-    bool flash_read_lba_raw(uint32_t sec, uint32_t cnt, void* buf);
-    bool flash_write_lba_raw(uint32_t sec, uint32_t cnt, void* buf);
-    bool flash_erase_lba_raw(uint32_t sec, uint32_t cnt);
+    bool flash_read_lba_raw (uint32_t start_sec, uint32_t cnt_sec, void* buf);
+    bool flash_write_lba_raw(uint32_t start_sec, uint32_t cnt_sec, void* buf);
+    bool flash_erase_lba_raw(uint32_t start_sec, uint32_t cnt_sec);
 
     bool write_raw(uint32_t addr, void* buf, size_t len);
     bool read_raw(uint32_t addr, void* buf, size_t len);
@@ -122,13 +122,13 @@ public:
     bool storage_switch(enum storage_type_t type);
 
     bool flash_detect(flash_info_t* info);
-    bool flash_erase_lba(uint32_t sec, uint32_t cnt);
-    bool flash_read_lba(uint32_t sec, uint32_t cnt, void* buf);
-    bool flash_write_lba(uint32_t sec, uint32_t cnt, void* buf);
-    bool flash_erase_lba_progress(uint32_t sec, uint32_t cnt);
-    bool flash_read_lba_progress(uint32_t sec, uint32_t cnt, void* buf);
-    bool flash_write_lba_progress(uint32_t sec, uint32_t cnt, void* buf);
-    bool flash_read_lba_to_file_progress(uint32_t sec, uint32_t cnt, const char* filename);
-    bool flash_write_lba_from_file_progress(uint32_t sec, uint32_t maxcnt, const char* filename);
+    bool flash_erase_lba(uint32_t start_sec, uint32_t cnt_sec);
+    bool flash_read_lba(uint32_t start_sec, uint32_t cnt_sec, void* buf);
+    bool flash_write_lba(uint32_t start_sec, uint32_t cnt_sec, void* buf);
+    bool flash_erase_lba_progress(uint32_t start_sec, uint32_t cnt_sec);
+    bool flash_read_lba_progress(uint32_t start_sec, uint32_t cnt_sec, void* buf);
+    bool flash_write_lba_progress(uint32_t start_sec, uint32_t cnt_sec, void* buf);
+    bool flash_read_lba_to_file_progress(uint32_t start_sec, uint32_t cnt_sec, const char* filename);
+    bool flash_write_lba_from_file_progress(uint32_t start_sec, uint32_t max_sec, const char* filename);
 };
 
